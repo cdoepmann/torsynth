@@ -14,6 +14,43 @@ use nom::Finish;
 use nom::IResult;
 
 use phf::phf_map;
+use thiserror;
+
+/// Custom Error Type
+#[derive(thiserror::Error, Debug)]
+pub enum DocumentParseError {
+    #[error("an internal parsing error occured (raised by nom)")]
+    Internal(#[from] nom::error::Error<String>),
+    #[error("Parsing stopped after {index} characters before input was complete (line {line}, character {character})")]
+    InputRemaining {
+        index: usize,
+        line: usize,
+        character: usize,
+    },
+}
+
+impl DocumentParseError {
+    fn remaining(total_input: &str, remaining_input: &str) -> DocumentParseError {
+        if remaining_input.len() > total_input.len() {
+            panic!(
+                "More input remaining ({}) than was available before parsing ({}) of Tor document.",
+                remaining_input.len(),
+                total_input.len()
+            );
+        }
+        let consumed = total_input.len() - remaining_input.len();
+        let line = total_input[..consumed].matches('\n').count() + 1;
+        let character = match total_input[..consumed].rfind('\n') {
+            Some(index) => consumed - index,
+            None => consumed + 1,
+        };
+        DocumentParseError::InputRemaining {
+            index: consumed,
+            line,
+            character,
+        }
+    }
+}
 
 /// The type of a Tor document (consensus, router descriptors, etc.)
 #[derive(Debug, Clone)]
@@ -60,10 +97,15 @@ pub struct Document<'a> {
 }
 
 impl<'a> Document<'a> {
-    fn parse(text: &'a str) -> Result<Document<'a>, Box<dyn error::Error>> {
-        let (_, doc) = Document::nom_parse(text)
+    fn parse(text: &'a str) -> Result<Document<'a>, DocumentParseError> {
+        let (i, doc) = Document::nom_parse(text)
             .map_err(|e| e.to_owned())
             .finish()?;
+
+        if !i.is_empty() {
+            return Err(DocumentParseError::remaining(text, i));
+        }
+
         Ok(doc)
     }
     fn nom_parse(i: &'a str) -> IResult<&'a str, Document<'a>> {
@@ -72,7 +114,7 @@ impl<'a> Document<'a> {
         let (i, first_item) = Item::nom_parse(i)?;
         assert_eq!(first_item.keyword, "type");
 
-        let (i, items) = all_consuming(many0(Item::nom_parse))(i)?;
+        let (i, items) = many0(Item::nom_parse)(i)?;
         Ok((
             i,
             Document {
@@ -176,7 +218,7 @@ impl<'a> Object<'a> {
 pub struct ConsensusDocument {}
 
 // pub fn parse_consensus(text: &str) -> Result<ConsensusDocument, Box<dyn error::Error>> {
-pub fn parse_consensus(text: &str) -> Result<Document, Box<dyn error::Error>> {
+pub fn parse_consensus(text: &str) -> Result<Document, DocumentParseError> {
     Document::parse(text)
 }
 
