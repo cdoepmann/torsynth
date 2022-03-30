@@ -15,6 +15,8 @@ use regex::Regex;
 
 // local modules
 use super::bwweights;
+use super::families;
+use super::families::Family;
 use crate::parser;
 use crate::parser::asn::{Asn, AsnDb};
 use crate::parser::consensus::ConsensusDocument;
@@ -51,15 +53,12 @@ pub struct Relay {
     pub exit_policy: CondensedExitPolicy,
     pub bandwidth_weight: u64,
     // from descriptor
-    pub family_members: Vec<Fingerprint>,
+    pub family: Option<Rc<Family>>,
 }
 
 impl Relay {
-    fn from_consensus_entry_and_descriptor<F: Fn(FamilyMember) -> Option<Fingerprint>>(
-        cons_relay: ShallowRelay,
-        desc: Descriptor,
-        family_filter: F,
-    ) -> Relay {
+    // TODO name
+    fn from_consensus_entry_and_descriptor(cons_relay: ShallowRelay) -> Relay {
         Relay {
             // from consensus
             nickname: cons_relay.nickname,
@@ -76,12 +75,7 @@ impl Relay {
             exit_policy: cons_relay.exit_policy,
             bandwidth_weight: cons_relay.bandwidth_weight,
             // from descriptor
-            family_members: desc
-                .family_members
-                .into_iter()
-                // keep only family members that do exist, and convert them to
-                .filter_map(family_filter)
-                .collect(),
+            family: None, // do not set now, but later after all relays are known
         }
     }
 
@@ -144,6 +138,8 @@ impl Consensus {
             }
         };
 
+        let mut family_relations: HashMap<Fingerprint, Vec<Fingerprint>> = HashMap::new();
+
         let mut relays: HashMap<Fingerprint, Relay> = HashMap::new();
         for relay in consensus.relays {
             let descriptor = descriptors.remove(&relay.digest).ok_or_else(|| {
@@ -152,11 +148,40 @@ impl Consensus {
                 }
             })?;
 
+            family_relations.insert(
+                relay.fingerprint.clone(),
+                descriptor
+                    .family_members
+                    .into_iter()
+                    // keep only family members that do exist, and convert them to
+                    .filter_map(filter_family_member)
+                    .collect(),
+            );
             relays.insert(
                 descriptor.fingerprint.clone(),
-                Relay::from_consensus_entry_and_descriptor(relay, descriptor, filter_family_member),
+                Relay::from_consensus_entry_and_descriptor(relay),
             );
         }
+        // only keep symmetric family relations etc.
+        families::clean_families(&mut family_relations);
+
+        // {
+        //     let count: usize = family_relations.values().map(|x| x.len()).sum();
+        //     println!("Old number of family relations: {}", count);
+        // }
+        // Make proper family objects
+        let family_cliques = families::make_cliques(family_relations);
+        for (fp, relay) in relays.iter_mut() {
+            let family = family_cliques[fp].clone(); // cheap due to Rc
+            relay.family = family;
+        }
+        // {
+        //     let count: usize = family_cliques
+        //         .values()
+        //         .map(|x| x.as_ref().map(|x| &(*x).members).unwrap_or(&vec![]).len())
+        //         .sum();
+        //     println!("Old number of family relations: {}", count);
+        // }
 
         println!("relays in consensus: {}", relays.len());
         println!("unused descriptors: {}", descriptors.len());
@@ -175,20 +200,7 @@ impl Consensus {
             weights: consensus.weights,
             relays: relays,
         };
-        res.clean_families();
         Ok(res)
-    }
-
-    /// Make sure that (1) families only contain relays that mirror this relationship, and
-    ///                (2) relays do not list themselves as family members
-    fn clean_families(&mut self) {
-        let tmp_relays_copy = self.relays.clone();
-        for (this_fingerprint, relay) in self.relays.iter_mut() {
-            relay.family_members.retain(|fp| {
-                let remote_family = &tmp_relays_copy[fp].family_members;
-                fp != this_fingerprint && remote_family.contains(this_fingerprint)
-            })
-        }
     }
 
     fn recompute_bw_weights(&mut self) {
