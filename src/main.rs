@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // println!("{:?}", descriptors);
     let consensus = parser::highlevel::Consensus::combine_documents(consensus, descriptors);
-    println!("{:?}", consensus);
+    // println!("{:?}", consensus);
 
     Ok(())
 }

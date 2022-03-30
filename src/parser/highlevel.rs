@@ -24,7 +24,7 @@ pub struct Consensus {
 }
 
 /// A relay contained in the consensus
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Relay {
     // from consensus
     nickname: String,
@@ -146,9 +146,23 @@ impl Consensus {
         println!("unused descriptors: {}", descriptors.len());
         drop(descriptors);
 
-        Ok(Consensus {
+        let mut res = Consensus {
             weights: consensus.weights,
             relays: relays,
-        })
+        };
+        res.clean_families();
+        Ok(res)
+    }
+
+    /// Make sure that (1) families only contain relays that mirror this relationship, and
+    ///                (2) relays do not list themselves as family members
+    fn clean_families(&mut self) {
+        let tmp_relays_copy = self.relays.clone();
+        for (this_fingerprint, relay) in self.relays.iter_mut() {
+            relay.family_members.retain(|fp| {
+                let remote_family = &tmp_relays_copy[fp].family_members;
+                fp != this_fingerprint && remote_family.contains(this_fingerprint)
+            })
+        }
     }
 }
