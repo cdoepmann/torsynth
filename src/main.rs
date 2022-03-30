@@ -18,6 +18,9 @@ struct Cli {
     /// AS IP ranges database CSV file
     #[clap(long)]
     asn_db: String,
+    /// Verify that the bandwidth weights are correct
+    #[clap(long)]
+    verify_weights: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,7 +44,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // println!("{:?}", descriptors);
     let consensus = highlevel::Consensus::combine_documents(consensus, descriptors);
-    println!("{:?}", consensus);
+    // println!("{:?}", consensus);
+
+    let mut consensus = consensus?;
+
+    if cli.verify_weights {
+        println!("verifying bw weights...");
+        match consensus.verify_weights() {
+            Ok(_) => {
+                println!("bw weights match.");
+            }
+            Err(s) => {
+                println!("bw weights do not match:");
+                println!("{}", s);
+            }
+        }
+    }
 
     Ok(())
 }

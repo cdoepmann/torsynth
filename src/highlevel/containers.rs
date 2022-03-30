@@ -10,6 +10,7 @@ use std::rc::Rc;
 use chrono::{DateTime, Utc};
 
 // local modules
+use super::bwweights;
 use crate::parser::asn::{Asn, AsnDb};
 use crate::parser::consensus::ConsensusDocument;
 use crate::parser::consensus::{
@@ -182,6 +183,26 @@ impl Consensus {
                 let remote_family = &tmp_relays_copy[fp].family_members;
                 fp != this_fingerprint && remote_family.contains(this_fingerprint)
             })
+        }
+    }
+
+    fn recompute_bw_weights(&mut self) {
+        bwweights::recompute_bw_weights(self)
+    }
+
+    /// Recompute and verify the contained bandwidth weights
+    pub fn verify_weights(&mut self) -> Result<(), String> {
+        let old_weights = self.weights.clone();
+        self.recompute_bw_weights();
+        let new_weights = &self.weights;
+
+        if old_weights == *new_weights {
+            return Ok(());
+        } else {
+            return Err(format!(
+                "old weights: {:?}\nnew weights: {:?}",
+                old_weights, new_weights
+            ));
         }
     }
 }

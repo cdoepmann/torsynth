@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use crate::highlevel::Consensus;
 use crate::parser::consensus::Flag;
 
+#[allow(non_snake_case)]
 pub fn recompute_bw_weights(consensus: &mut Consensus) {
     let mut Wmd: i64;
     let mut Wed: i64;
@@ -25,7 +26,7 @@ pub fn recompute_bw_weights(consensus: &mut Consensus) {
             E += relay.bandwidth_weight as i64;
         } else if relay.has_flag(Flag::Guard) {
             G += relay.bandwidth_weight as i64;
-        } else if relay.has_flag(Flag::Guard) {
+        } else {
             M += relay.bandwidth_weight as i64;
         }
     }
@@ -272,6 +273,7 @@ enum BwwError {
 }
 
 /// Verify that our weights satify the formulas from dir-spec.txt
+#[allow(non_snake_case)]
 fn check_weights_errors(
     Wgg: i64,
     Wgd: i64,
