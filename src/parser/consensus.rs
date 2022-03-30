@@ -260,6 +260,7 @@ impl ConsensusDocument {
                     let splits = item.split_arguments()?;
                     let flags: Vec<Flag> = splits
                         .iter()
+                        .filter(|x| x.trim_start().len() > 0)
                         .map(|x| {
                             x.parse::<Flag>()
                                 .map_err(|_| DocumentParseError::UnknownFlag {
@@ -289,6 +290,9 @@ impl ConsensusDocument {
                     let mut protocols = BTreeMap::new();
                     let splits = item.split_arguments()?;
                     for split in splits.iter() {
+                        if split.trim_start().len() == 0 {
+                            continue;
+                        }
                         let (left, right) = split
                             .split_once('=')
                             .ok_or(DocumentParseError::InvalidArgumentDict)?;
