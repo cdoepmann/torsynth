@@ -195,4 +195,33 @@ impl AsnDb {
         let asn: &u32 = self.as_lookup.longest_match(ip).map(|(_, _, asn)| asn)?;
         Some(Rc::clone(self.as_objects.get(asn)?))
     }
+
+    /// Sample a random IP address that isn't part of any known AS
+    pub fn sample_unknown_ip(&self) -> Ipv4Addr {
+        use rand::prelude::*;
+        let mut rng = get_rng();
+
+        loop {
+            let sample: u32 = rng.gen();
+            let ip = Ipv4Addr::from(sample.to_be_bytes());
+            println!("trying {:?}...", ip);
+            if let None = self.as_lookup.longest_match(ip) {
+                return ip;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generate_unknown_ip() {
+        crate::seeded_rand::set_seed(42);
+
+        let asn_db = AsnDb::new("GeoLite2-ASN-Blocks-IPv4.csv").unwrap();
+        let ip = asn_db.sample_unknown_ip();
+        assert_eq!(ip, "240.155.61.22".parse::<Ipv4Addr>().unwrap());
+    }
 }
