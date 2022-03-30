@@ -3,14 +3,19 @@
 // std
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fs::File;
+use std::io::prelude::*;
 use std::net::Ipv4Addr;
+use std::path::Path;
 use std::rc::Rc;
 
 // external dependencies
 use chrono::{DateTime, Utc};
+use regex::Regex;
 
 // local modules
 use super::bwweights;
+use crate::parser;
 use crate::parser::asn::{Asn, AsnDb};
 use crate::parser::consensus::ConsensusDocument;
 use crate::parser::consensus::{
@@ -205,4 +210,79 @@ impl Consensus {
             ));
         }
     }
+}
+
+/// Load descriptors from files relative to the consensus document
+pub fn lookup_descriptors<P: AsRef<Path>>(
+    consensus: &ConsensusDocument,
+    consensus_path: P,
+) -> Result<Vec<Descriptor>, Box<dyn std::error::Error>> {
+    let consensus_path = consensus_path.as_ref();
+    // get year and month
+    let fname_regex = Regex::new(r"^(\d{4})-(\d{2})-(\d{2})-").unwrap();
+    let fname_match = fname_regex
+        .captures(
+            consensus_path
+                .file_name()
+                .ok_or(DocumentCombiningError::InvalidFolderStructure)?
+                .to_str()
+                .ok_or(DocumentCombiningError::InvalidFolderStructure)?,
+        )
+        .ok_or(DocumentCombiningError::InvalidFolderStructure)?;
+    let this_year: u32 = fname_match.get(1).unwrap().as_str().parse().unwrap();
+    let this_month: u32 = fname_match.get(2).unwrap().as_str().parse().unwrap();
+
+    let (previous_year, previous_month) = if this_month == 1 {
+        (this_year - 1, 12)
+    } else {
+        (this_year, this_month - 1)
+    };
+
+    // find the corresponding descriptor folders (current month and the one before)
+    let current_desc = consensus_path
+        .parent()
+        .ok_or(DocumentCombiningError::InvalidFolderStructure)?
+        .join(format!(
+            "../../server-descriptors-{:04}-{:02}/",
+            this_year, this_month
+        ));
+    if !current_desc.exists() {
+        return Err(Box::new(DocumentCombiningError::InvalidFolderStructure));
+    }
+    let previous_desc = consensus_path
+        .parent()
+        .ok_or(DocumentCombiningError::InvalidFolderStructure)?
+        .join(format!(
+            "../../server-descriptors-{:04}-{:02}/",
+            previous_year, previous_month
+        ));
+
+    // Lookup the descriptors
+    let mut descriptors = Vec::new();
+    for relay in consensus.relays.iter() {
+        let digest = format!("{}", relay.digest);
+        let first_char = digest.chars().next().unwrap();
+        let second_char = digest.chars().skip(1).next().unwrap();
+
+        let subpath = format!("{}/{}/{}", first_char, second_char, digest);
+        let current_path = current_desc.join(&subpath);
+        let previous_path = previous_desc.join(&subpath);
+
+        let desc_path = if current_path.exists() {
+            current_path
+        } else if previous_path.exists() {
+            previous_path
+        } else {
+            return Err(Box::new(DocumentCombiningError::MissingDescriptor {
+                digest: relay.digest.clone(),
+            }));
+        };
+
+        let mut raw = String::new();
+        let mut file = File::open(desc_path).unwrap();
+        file.read_to_string(&mut raw).unwrap();
+        descriptors.append(&mut parser::parse_descriptors(&raw)?);
+    }
+
+    Ok(descriptors)
 }

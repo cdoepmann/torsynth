@@ -1,4 +1,4 @@
 mod bwweights;
 mod containers;
 
-pub use containers::{Consensus, Relay};
+pub use containers::{lookup_descriptors, Consensus, Relay};
