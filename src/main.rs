@@ -11,6 +11,9 @@ struct Cli {
     /// Input consensus to sample from.
     #[clap(long)]
     consensus: String,
+    /// Parse many documents in one
+    #[clap(short, long)]
+    many: bool,
 }
 
 fn main() {
@@ -21,5 +24,9 @@ fn main() {
     file.read_to_string(&mut consensus_raw).unwrap();
 
     // run our parser tests
-    println!("{:?}", parser::parse_consensus(&consensus_raw));
+    if !cli.many {
+        println!("{:?}", parser::parse_consensus(&consensus_raw));
+    } else {
+        println!("{:?}", parser::parse_descriptors(&consensus_raw));
+    }
 }

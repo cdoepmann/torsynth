@@ -97,7 +97,7 @@ pub struct Document<'a> {
 }
 
 impl<'a> Document<'a> {
-    fn parse(text: &'a str) -> Result<Document<'a>, DocumentParseError> {
+    fn parse_single(text: &'a str) -> Result<Document<'a>, DocumentParseError> {
         let (i, doc) = Document::nom_parse(text)
             .map_err(|e| e.to_owned())
             .finish()?;
@@ -108,6 +108,20 @@ impl<'a> Document<'a> {
 
         Ok(doc)
     }
+
+    fn parse_many(text: &'a str) -> Result<Vec<Document<'a>>, DocumentParseError> {
+        let mut docs = Vec::new();
+        let mut i = text;
+        while !i.is_empty() {
+            let (new_i, doc) = Document::nom_parse(i).map_err(|e| e.to_owned()).finish()?;
+            i = new_i;
+
+            docs.push(doc);
+        }
+
+        Ok(docs)
+    }
+
     fn nom_parse(i: &'a str) -> IResult<&'a str, Document<'a>> {
         let (i, _) = tag("@")(i)?;
         let (i, _) = peek(tag("type"))(i)?;
@@ -217,9 +231,12 @@ impl<'a> Object<'a> {
 #[derive(Debug)]
 pub struct ConsensusDocument {}
 
-// pub fn parse_consensus(text: &str) -> Result<ConsensusDocument, Box<dyn error::Error>> {
 pub fn parse_consensus(text: &str) -> Result<Document, DocumentParseError> {
-    Document::parse(text)
+    Document::parse_single(text)
+}
+
+pub fn parse_descriptors(text: &str) -> Result<Vec<Document>, DocumentParseError> {
+    Document::parse_many(text)
 }
 
 #[cfg(test)]
