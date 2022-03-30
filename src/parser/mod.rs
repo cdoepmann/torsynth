@@ -7,46 +7,13 @@ use nom::bytes::complete::{tag, take_while, take_while1};
 use nom::character::complete::{
     alpha1, alphanumeric1, digit1, line_ending, not_line_ending, space0, space1,
 };
-use nom::combinator::{all_consuming, map, map_res, opt, recognize};
+use nom::combinator::{all_consuming, map, map_res, opt, peek, recognize};
 use nom::multi::{many0, many1};
 use nom::sequence::tuple;
 use nom::Finish;
 use nom::IResult;
 
 use phf::phf_map;
-
-#[derive(Debug, PartialEq)]
-struct Foo {
-    a: Option<String>,
-    b: u8,
-}
-
-fn item(i: &str) -> IResult<&str, &str> {
-    alpha1(i)
-}
-
-fn two_items_reversed(i: &str) -> IResult<&str, Option<String>> {
-    let (i, (first, _, second)) = tuple((item, tag(","), item))(i)?;
-    Ok((i, Some(format!("{second}-{first}"))))
-}
-
-fn no_items(i: &str) -> IResult<&str, Option<String>> {
-    let (i, _) = tag("#")(i)?;
-    Ok((i, None))
-}
-
-fn parse(i: &str) -> IResult<&str, Foo> {
-    let (i, _) = take_while(char::is_whitespace)(i)?;
-    let (i, a) = alt((two_items_reversed, no_items))(i)?;
-    let (i, _) = take_while1(char::is_whitespace)(i)?;
-    let (i, b) = map_res(digit1, |s: &str| s.parse::<u8>())(i)?;
-    let (i, _) = take_while(char::is_whitespace)(i)?;
-    Ok((i, Foo { a, b }))
-}
-
-pub fn do_it(x: &str) {
-    println!("{:?}", parse(x))
-}
 
 /// The type of a Tor document (consensus, router descriptors, etc.)
 #[derive(Debug, Clone)]
@@ -73,20 +40,46 @@ struct VersionedDocumentType {
     version: String,
 }
 
+impl VersionedDocumentType {
+    fn from_str(s: &str) -> VersionedDocumentType {
+        let parts: Vec<&str> = s.split(' ').collect();
+
+        VersionedDocumentType {
+            doctype: DocumentType::from_str(parts[0]).unwrap(),
+            version: parts[1].to_owned(),
+        }
+    }
+}
+
 /// An unspecific Tor document, based on the Tor doc meta format.
 /// It does not contain any notion of one of the specific document types
 #[derive(Debug)]
 pub struct Document<'a> {
+    doctype: VersionedDocumentType,
     items: Vec<Item<'a>>,
 }
 
 impl<'a> Document<'a> {
     fn parse(text: &'a str) -> Result<Document<'a>, Box<dyn error::Error>> {
-        let (i, items) = all_consuming(many0(Item::nom_parse))(text)
-            // let (i, items) = many0(Item::nom_parse)(text)
+        let (_, doc) = Document::nom_parse(text)
             .map_err(|e| e.to_owned())
             .finish()?;
-        Ok(Document { items })
+        Ok(doc)
+    }
+    fn nom_parse(i: &'a str) -> IResult<&'a str, Document<'a>> {
+        let (i, _) = tag("@")(i)?;
+        let (i, _) = peek(tag("type"))(i)?;
+        let (i, first_item) = Item::nom_parse(i)?;
+        assert_eq!(first_item.keyword, "type");
+
+        let (i, items) = all_consuming(many0(Item::nom_parse))(i)?;
+        Ok((
+            i,
+            Document {
+                doctype: VersionedDocumentType::from_str(first_item.arguments.unwrap()),
+                items: items,
+            },
+        ))
     }
 }
 
