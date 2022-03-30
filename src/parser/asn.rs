@@ -3,7 +3,6 @@
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::error::Error;
 use std::fs::File;
 use std::net::Ipv4Addr;
 use std::num::ParseIntError;
@@ -70,21 +69,21 @@ struct IpRange {
     masklen: u32,
 }
 
-fn bitmask_left_ones(length: u32) -> u32 {
-    if length > 32 {
-        panic!("Cannot create an u32 bitmask of length {}", length);
-    }
-    let mut res = 0u32;
-    for i in 0..length {
-        res += 1;
-        res <<= 1;
-    }
-    res
-}
+// fn bitmask_left_ones(length: u32) -> u32 {
+//     if length > 32 {
+//         panic!("Cannot create an u32 bitmask of length {}", length);
+//     }
+//     let mut res = 0u32;
+//     for i in 0..length {
+//         res += 1;
+//         res <<= 1;
+//     }
+//     res
+// }
 
-fn bitmask_right_ones(length: u32) -> u32 {
-    !bitmask_left_ones(length)
-}
+// fn bitmask_right_ones(length: u32) -> u32 {
+//     !bitmask_left_ones(length)
+// }
 
 impl IpRange {
     pub fn new(ip: Ipv4Addr, masklen: u32) -> IpRange {
@@ -114,13 +113,13 @@ impl IpRange {
         Ipv4Addr::from((self.to_u32() + i).to_be_bytes())
     }
 
-    pub fn first_ip(&self) -> Ipv4Addr {
-        self.index(0)
-    }
+    // pub fn first_ip(&self) -> Ipv4Addr {
+    //     self.index(0)
+    // }
 
-    pub fn last_ip(&self) -> Ipv4Addr {
-        self.index(self.len() - 1)
-    }
+    // pub fn last_ip(&self) -> Ipv4Addr {
+    //     self.index(self.len() - 1)
+    // }
 
     pub fn sample_ip(&self) -> Ipv4Addr {
         use rand::prelude::*;
