@@ -1,8 +1,8 @@
 use std::cmp::{max, min};
 use std::collections::BTreeMap;
 
-use crate::parser::highlevel::Consensus;
-use crate::parser::Flag;
+use crate::highlevel::Consensus;
+use crate::parser::consensus::Flag;
 
 pub fn recompute_bw_weights(consensus: &mut Consensus) {
     let mut Wmd: i64;

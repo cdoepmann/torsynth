@@ -2,19 +2,17 @@
 
 // other local modules
 mod error;
+pub use error::DocumentCombiningError;
 pub use error::DocumentParseError;
 
 mod meta;
 pub use meta::{Document, Fingerprint};
 
-mod consensus;
-pub use consensus::ConsensusDocument;
-pub use consensus::Flag;
+pub mod consensus;
+use consensus::ConsensusDocument;
 
-mod descriptor;
-pub use descriptor::Descriptor;
-
-pub mod highlevel;
+pub mod descriptor;
+use descriptor::Descriptor;
 
 pub mod asn;
 

@@ -10,13 +10,14 @@ use std::rc::Rc;
 use chrono::{DateTime, Utc};
 
 // local modules
-use super::asn::{Asn, AsnDb};
-use super::consensus::{
+use crate::parser::asn::{Asn, AsnDb};
+use crate::parser::consensus::ConsensusDocument;
+use crate::parser::consensus::{
     CondensedExitPolicy, Flag, Protocol, ShallowRelay, SupportedProtocolVersion,
 };
-use super::descriptor::{Descriptor, FamilyMember};
-use super::error::DocumentCombiningError;
-use super::{ConsensusDocument, Fingerprint};
+use crate::parser::descriptor::{Descriptor, FamilyMember};
+use crate::parser::DocumentCombiningError;
+use crate::parser::Fingerprint;
 
 /// A container for the result of merging a consensus document and the
 /// respective relay server descriptors.
