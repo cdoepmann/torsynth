@@ -11,7 +11,7 @@ struct Cli {
     /// Input consensus to sample from.
     #[clap(long)]
     consensus: String,
-    /// Input consensus to sample from.
+    /// Descriptor database for relay descriptors.
     #[clap(long)]
     descriptors: String,
 }
@@ -34,17 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // println!("{:?}", descriptors);
-
-    let mut total = 0u32;
-    let mut found = 0u32;
-    for relay in consensus.relays {
-        total += 1;
-        if let Some(_) = descriptors.get(&relay.digest) {
-            found += 1;
-        }
-    }
-
-    println!("Found {found}/{total} consensus relays.");
+    let consensus = parser::highlevel::Consensus::combine_documents(consensus, descriptors);
+    println!("{:?}", consensus);
 
     Ok(())
 }

@@ -73,3 +73,10 @@ impl DocumentParseError {
         }
     }
 }
+
+/// Error when combining consensus and descriptors
+#[derive(thiserror::Error, Debug)]
+pub enum DocumentCombiningError {
+    #[error("No descriptor with digest {digest} found.")]
+    MissingDescriptor { digest: super::meta::Fingerprint },
+}

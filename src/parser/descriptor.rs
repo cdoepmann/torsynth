@@ -1,8 +1,5 @@
 //! Tor server descriptor documents
 
-use std::num::ParseIntError;
-use std::str::FromStr;
-
 use super::DocumentParseError;
 
 use super::meta;
@@ -14,7 +11,12 @@ use meta::{Document, Fingerprint};
 use chrono::{offset::TimeZone, DateTime, Utc};
 use derive_builder::Builder;
 use sha1::{Digest, Sha1};
-use strum::EnumString;
+
+#[derive(Debug, Clone)]
+pub enum FamilyMember {
+    Fingerprint(Fingerprint),
+    Nickname(String),
+}
 
 /// A relay server descriptor.
 ///
@@ -26,10 +28,8 @@ pub struct Descriptor {
     pub fingerprint: Fingerprint,
     pub digest: Fingerprint,
     pub published: DateTime<Utc>,
-    // pub address: String,
-    // pub or_port: u16,
-    // pub dir_port: Option<u16>,
-    // exit_policy: CondensedExitPolicy,
+    #[builder(default)]
+    pub family_members: Vec<FamilyMember>,
 }
 
 impl Descriptor {
@@ -65,6 +65,22 @@ impl Descriptor {
                 "fingerprint" => {
                     let arg = item.get_argument()?;
                     builder.fingerprint(Fingerprint::from_str_hex(arg)?);
+                }
+                "family" => {
+                    let args = item.split_arguments()?;
+                    let family_members: Vec<FamilyMember> = args
+                        .iter()
+                        .map(|x| {
+                            if x.starts_with('$') {
+                                Ok(FamilyMember::Fingerprint(Fingerprint::from_str_hex(
+                                    &x[1..],
+                                )?))
+                            } else {
+                                Ok(FamilyMember::Nickname(x.to_string()))
+                            }
+                        })
+                        .collect::<Result<Vec<FamilyMember>, DocumentParseError>>()?;
+                    builder.family_members(family_members);
                 }
                 "published" => {
                     let arg = item.get_argument()?;

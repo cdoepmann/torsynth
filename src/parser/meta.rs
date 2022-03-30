@@ -1,17 +1,24 @@
 //! The general meta format for Tor documents
 
+use std::fmt;
+
 use super::error::DocumentParseError;
 
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::character::complete::{
-    alpha1, alphanumeric1, digit1, line_ending, not_line_ending, space0, space1,
-};
-use nom::combinator::{all_consuming, map, map_res, opt, peek, recognize};
-use nom::multi::{many0, many1};
+use nom::bytes::complete::{tag, take_while};
+use nom::character::complete::{alphanumeric1, line_ending, not_line_ending, space0, space1};
+use nom::combinator::{map, opt, peek, recognize};
+use nom::multi::many0;
 use nom::sequence::tuple;
 use nom::Finish;
 use nom::IResult;
+
+// use nom::bytes::complete::{ take_while1};
+// use nom::character::complete::{
+//     alpha1, digit1,
+// };
+// use nom::combinator::{all_consuming, map_res};
+// use nom::multi::{many1};
 
 use base64;
 use phf::phf_map;
@@ -256,6 +263,15 @@ impl Fingerprint {
     }
     pub fn from_u8(raw: &[u8]) -> Fingerprint {
         Fingerprint { blob: raw.to_vec() }
+    }
+}
+
+impl fmt::Display for Fingerprint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for byte in &self.blob {
+            write!(f, "{:02x}", byte)?;
+        }
+        Ok(())
     }
 }
 
