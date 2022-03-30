@@ -58,6 +58,7 @@ impl VersionedDocumentType {
 pub struct Document<'a> {
     pub doctype: VersionedDocumentType,
     pub items: Vec<Item<'a>>,
+    raw_content: &'a str,
 }
 
 impl<'a> Document<'a> {
@@ -86,7 +87,8 @@ impl<'a> Document<'a> {
         Ok(docs)
     }
 
-    fn nom_parse(i: &'a str) -> IResult<&'a str, Document<'a>> {
+    fn nom_parse(text: &'a str) -> IResult<&'a str, Document<'a>> {
+        let i = text;
         let (i, _) = tag("@")(i)?;
         let (i, _) = peek(tag("type"))(i)?;
         let (i, first_item) = Item::nom_parse(i)?;
@@ -98,8 +100,30 @@ impl<'a> Document<'a> {
             Document {
                 doctype: VersionedDocumentType::from_str(first_item.arguments.unwrap()),
                 items: items,
+                raw_content: text,
             },
         ))
+    }
+
+    pub fn get_raw_content_between(
+        &'a self,
+        start: &str,
+        end: &str,
+    ) -> Result<&'a [u8], DocumentParseError> {
+        let start_pos = self.raw_content.find(start).ok_or_else(|| {
+            DocumentParseError::ContentRangeNotFound {
+                from: start.to_string(),
+                to: end.to_string(),
+            }
+        })?;
+        let end_pos =
+            self.raw_content
+                .find(end)
+                .ok_or_else(|| DocumentParseError::ContentRangeNotFound {
+                    from: start.to_string(),
+                    to: end.to_string(),
+                })?;
+        Ok(&self.raw_content.as_bytes()[start_pos..end_pos + end.len()])
     }
 }
 
@@ -208,7 +232,7 @@ impl<'a> Object<'a> {
 }
 
 /// A relay fingerprint
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Fingerprint {
     blob: Vec<u8>,
 }
@@ -218,6 +242,20 @@ impl Fingerprint {
         Ok(Fingerprint {
             blob: base64::decode(raw_b64)?,
         })
+    }
+    pub fn from_str_hex(mut raw_hex: &str) -> Result<Fingerprint, DocumentParseError> {
+        let mut blob = Vec::new();
+        while raw_hex.len() > 0 {
+            raw_hex = raw_hex.trim_start();
+            let byte = u8::from_str_radix(&raw_hex[..2], 16)?;
+            blob.push(byte);
+            raw_hex = &raw_hex[2..];
+        }
+
+        Ok(Fingerprint { blob })
+    }
+    pub fn from_u8(raw: &[u8]) -> Fingerprint {
+        Fingerprint { blob: raw.to_vec() }
     }
 }
 
@@ -255,9 +293,13 @@ mod tests {
         assert_eq!(item.objects[1].keyword, "RSA PUBLIC KEY");
     }
 
-    // #[test]
-    // fn tmp_nom() {
-    //     let i = " abc";
-    //     dbg!(many0(alt((nom_parse_keyword, space1)))(i));
-    // }
+    #[test]
+    fn test_fingerprint_hex() {
+        assert_eq!(
+            Fingerprint::from_str_hex("12FF 0B42").unwrap(),
+            Fingerprint {
+                blob: vec![0x12, 0xff, 0x0b, 0x42]
+            }
+        );
+    }
 }

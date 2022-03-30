@@ -15,6 +15,8 @@ pub enum DocumentParseError {
     },
     #[error("When parsing a consensus, a relay did not have all necessary information")]
     RelayIncomplete(#[from] super::consensus::ShallowRelayBuilderError),
+    #[error("When parsing a descriptor, the relay did not have all necessary information")]
+    DescriptorIncomplete(#[from] super::descriptor::DescriptorBuilderError),
     #[error("An item with keyword '{keyword}' unexpectedly had no or not enough arguments")]
     ItemArgumentsMissing { keyword: String },
     #[error("An item with keyword '{keyword}' was not expected at this position")]
@@ -43,6 +45,8 @@ pub enum DocumentParseError {
     ConsensusWeightsMissing,
     #[error("Consensus weights cannot be parsed")]
     MalformedConsensusWeights,
+    #[error("Content range '{from}'...'{to}' not found")]
+    ContentRangeNotFound { from: String, to: String },
 }
 
 impl DocumentParseError {

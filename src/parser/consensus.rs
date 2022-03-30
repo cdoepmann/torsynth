@@ -163,25 +163,26 @@ impl FromStr for CondensedExitPolicy {
 /// A parsed consensus document ("network status").
 #[derive(Debug)]
 pub struct ConsensusDocument {
-    relays: Vec<ShallowRelay>,
-    weights: BTreeMap<String, u64>,
+    pub relays: Vec<ShallowRelay>,
+    pub weights: BTreeMap<String, u64>,
 }
 
 /// A relay entry within the consensus, containing only these sparse information
 /// instead of the full server descriptor
 #[derive(Debug, Builder)]
 pub struct ShallowRelay {
-    nickname: String,
-    fingerprint: Fingerprint,
-    published: DateTime<Utc>,
-    address: String,
-    or_port: u16,
-    dir_port: Option<u16>,
-    flags: Vec<Flag>,
-    version_line: String,
-    protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
-    exit_policy: CondensedExitPolicy,
-    bandwidth_weight: u64,
+    pub nickname: String,
+    pub fingerprint: Fingerprint,
+    pub digest: Fingerprint,
+    pub published: DateTime<Utc>,
+    pub address: String,
+    pub or_port: u16,
+    pub dir_port: Option<u16>,
+    pub flags: Vec<Flag>,
+    pub version_line: String,
+    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    pub exit_policy: CondensedExitPolicy,
+    pub bandwidth_weight: u64,
 }
 
 ///
@@ -215,10 +216,11 @@ impl ConsensusDocument {
                     // parse entries
                     let splits = item.split_arguments()?;
                     match splits[..] {
-                        [nickname, identity, _digest, published_1, published_2, ip, or_port, dir_port, ..] =>
+                        [nickname, identity, digest, published_1, published_2, ip, or_port, dir_port, ..] =>
                         {
                             relay.nickname(nickname.to_string());
                             relay.fingerprint(Fingerprint::from_str_b64(identity)?);
+                            relay.digest(Fingerprint::from_str_b64(digest)?);
                             relay.published(Utc.datetime_from_str(
                                 &format!("{published_1} {published_2}"),
                                 "%Y-%m-%d %H:%M:%S",
