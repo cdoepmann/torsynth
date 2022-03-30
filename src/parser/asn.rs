@@ -39,7 +39,7 @@ pub struct AsnDb {
 
 #[derive(Debug)]
 pub struct Asn {
-    number: u32,
+    pub number: u32,
     name: String,
     ranges: RefCell<Vec<IpRange>>, // allow mutation during construction
 }
@@ -60,6 +60,12 @@ impl Asn {
         let dist = WeightedIndex::new(ranges.iter().map(|x| x.len())).unwrap();
         let mut rng = get_rng();
         ranges[dist.sample(&mut rng)].sample_ip()
+    }
+}
+
+impl PartialEq for Asn {
+    fn eq(&self, other: &Asn) -> bool {
+        self.number == other.number
     }
 }
 
@@ -203,7 +209,7 @@ impl AsnDb {
         loop {
             let sample: u32 = rng.gen();
             let ip = Ipv4Addr::from(sample.to_be_bytes());
-            println!("trying {:?}...", ip);
+            // println!("trying {:?}...", ip);
             if let None = self.as_lookup.longest_match(ip) {
                 return ip;
             }

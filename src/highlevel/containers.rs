@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 // external dependencies
 use chrono::{DateTime, Utc};
+use itertools;
 use regex::Regex;
 
 // local modules
@@ -18,7 +19,7 @@ use super::bwweights;
 use super::families;
 use super::families::Family;
 use crate::parser;
-use crate::parser::asn::{Asn, AsnDb};
+use crate::parser::asn::Asn;
 use crate::parser::consensus::ConsensusDocument;
 use crate::parser::consensus::{
     CondensedExitPolicy, Flag, Protocol, ShallowRelay, SupportedProtocolVersion,
@@ -33,6 +34,13 @@ use crate::parser::Fingerprint;
 pub struct Consensus {
     pub weights: BTreeMap<String, u64>,
     pub relays: HashMap<Fingerprint, Relay>,
+    pub families: Vec<Rc<Family>>,
+    /// Probability that a relay is in a family
+    pub prob_family: f32,
+    /// Probability that an two relays in a family have the same AS
+    pub prob_family_sameas: f32,
+    /// Sizes of families: (size, frequency) tuples
+    pub family_sizes: Vec<(usize, usize)>,
 }
 
 /// A relay contained in the consensus
@@ -170,7 +178,7 @@ impl Consensus {
         //     println!("Old number of family relations: {}", count);
         // }
         // Make proper family objects
-        let family_cliques = families::make_cliques(family_relations);
+        let (family_cliques, family_objects) = families::make_cliques(family_relations);
         for (fp, relay) in relays.iter_mut() {
             let family = family_cliques[fp].clone(); // cheap due to Rc
             relay.family = family;
@@ -186,9 +194,33 @@ impl Consensus {
         println!("relays in consensus: {}", relays.len());
         println!("unused descriptors: {}", descriptors.len());
         drop(descriptors);
+
+        // compute stats
+        let prob_family = prob_family(&relays);
+        let prob_family_sameas = prob_family_sameas(&family_objects, &relays);
+        let family_sizes = family_sizes(&family_objects);
+
+        let res = Consensus {
+            weights: consensus.weights,
+            relays: relays,
+            families: family_objects,
+            prob_family,
+            prob_family_sameas,
+            family_sizes,
+        };
+        res.print_stats();
+
+        Ok(res)
+    }
+
+    pub fn recompute_bw_weights(&mut self) {
+        bwweights::recompute_bw_weights(self)
+    }
+
+    pub fn print_stats(&self) {
         let with_asn = {
             let mut res = 0;
-            for r in relays.values() {
+            for r in self.relays.values() {
                 if let Some(_) = r.asn {
                     res += 1;
                 }
@@ -196,15 +228,28 @@ impl Consensus {
             res
         };
         println!("relays with AS: {}", with_asn);
-        let mut res = Consensus {
-            weights: consensus.weights,
-            relays: relays,
-        };
-        Ok(res)
+        println!("number of families: {}", self.families.len());
+        println!("share of relays with family: {}", self.prob_family);
+        println!(
+            "Pairwise probability for family members to have the same AS: {}",
+            self.prob_family_sameas
+        );
+
+        println!("Sizes of families:");
+        for (size, n) in self.family_sizes.iter() {
+            println!(
+                "- size {:3} -> {:3} families ({:4.3} of families)",
+                size,
+                *n,
+                *n as f32 / self.families.len() as f32
+            );
+        }
     }
 
-    fn recompute_bw_weights(&mut self) {
-        bwweights::recompute_bw_weights(self)
+    pub fn recompute_stats(&mut self) {
+        self.prob_family = prob_family(&self.relays);
+        self.prob_family_sameas = prob_family_sameas(&self.families, &self.relays);
+        self.family_sizes = family_sizes(&self.families);
     }
 
     /// Recompute and verify the contained bandwidth weights
@@ -222,6 +267,40 @@ impl Consensus {
             ));
         }
     }
+}
+
+fn prob_family(relays: &HashMap<Fingerprint, Relay>) -> f32 {
+    relays.values().filter(|x| x.family.is_some()).count() as f32 / relays.len() as f32
+}
+
+fn prob_family_sameas(
+    family_objects: &Vec<Rc<Family>>,
+    relays: &HashMap<Fingerprint, Relay>,
+) -> f32 {
+    family_objects
+        .iter()
+        .map(|rc| &(*rc).members)
+        .map(|members| {
+            let asns: Vec<u32> = members
+                .iter()
+                .map(|fp| relays[fp].asn.as_ref().map(|a| a.number).unwrap_or(0))
+                .collect();
+            let total = asns.len() * asns.len();
+
+            use itertools::Itertools;
+            let same: usize = asns
+                .iter()
+                .cartesian_product(asns.iter())
+                .map(|(x, y)| if x == y { 1 } else { 0 })
+                .sum();
+            same as f32 / total as f32
+        })
+        .sum::<f32>()
+        / family_objects.len() as f32
+}
+
+fn family_sizes(family_objects: &Vec<Rc<Family>>) -> Vec<(usize, usize)> {
+    families::size_histogram(&family_objects)
 }
 
 /// Load descriptors from files relative to the consensus document

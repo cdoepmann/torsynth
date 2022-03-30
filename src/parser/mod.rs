@@ -15,10 +15,11 @@ pub mod descriptor;
 use descriptor::Descriptor;
 
 pub mod asn;
+pub use asn::AsnDb;
 
 pub fn parse_consensus(
     text: &str,
-    asn_db: asn::AsnDb,
+    asn_db: &asn::AsnDb,
 ) -> Result<ConsensusDocument, DocumentParseError> {
     ConsensusDocument::from_str(text, asn_db)
 }

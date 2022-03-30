@@ -1,6 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
+use super::Relay;
 use crate::parser::Fingerprint;
 
 #[derive(Debug)]
@@ -12,9 +13,10 @@ pub struct Family {
 /// are also considered to be part of the same family.
 pub fn make_cliques(
     family_relations: HashMap<Fingerprint, Vec<Fingerprint>>,
-) -> HashMap<Fingerprint, Option<Rc<Family>>> {
+) -> (HashMap<Fingerprint, Option<Rc<Family>>>, Vec<Rc<Family>>) {
     let mut family_relations = family_relations;
     let mut result = HashMap::new();
+    let mut families = Vec::new();
 
     // iterate over all relays
     loop {
@@ -36,13 +38,14 @@ pub fn make_cliques(
                 members: all_family_members.into_iter().collect(),
             };
             let rc = Rc::new(family);
+            families.push(rc.clone());
             for x in (*rc).members.iter() {
                 result.insert(x.clone(), Some(rc.clone()));
             }
         }
     }
 
-    result
+    (result, families)
 }
 
 /// Remove a fingerprint from the map as well as all of its family members,
@@ -85,4 +88,43 @@ pub fn clean_families(family_relations: &mut HashMap<Fingerprint, Vec<Fingerprin
             fp != this_fingerprint && remote_family.contains(this_fingerprint)
         })
     }
+}
+
+pub fn size_histogram(families: &Vec<Rc<Family>>) -> Vec<(usize, usize)> {
+    let mut counts: BTreeMap<usize, usize> = BTreeMap::new();
+    for family in families.iter() {
+        let k = (*family).members.len();
+        *counts.entry(k).or_insert(0) += 1;
+    }
+
+    counts.into_iter().collect()
+}
+
+/// Compute new family objects based on relays' family references. This, e.g.,
+/// grows the families if new relays have "joined" the family by having added
+/// a reference pointing to that family to their properties.
+/// Modifies all relays and also returns the new family objects
+pub fn recompute_families(relays: &mut HashMap<Fingerprint, Relay>) -> Vec<Rc<Family>> {
+    let mut members = HashMap::<*const Family, Vec<Fingerprint>>::new();
+    // collect the members
+    for (fp, relay) in relays.iter() {
+        if let Some(fam) = &relay.family {
+            members.entry(Rc::as_ptr(fam)).or_default().push(fp.clone());
+        }
+    }
+    // make the new objects
+    let mut new_families = HashMap::<*const Family, Rc<Family>>::new();
+    for (ptr, members) in members.into_iter() {
+        new_families.insert(ptr, Rc::new(Family { members }));
+    }
+
+    // change relays to point to the new family objects
+    for (_, relay) in relays.iter_mut() {
+        if let Some(fam) = relay.family.as_mut() {
+            *fam = new_families[&Rc::as_ptr(fam)].clone();
+        }
+    }
+
+    // return the new family objects
+    new_families.into_values().collect()
 }

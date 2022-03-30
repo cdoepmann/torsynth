@@ -1,4 +1,5 @@
 mod highlevel;
+use highlevel::scale_horizontally;
 mod parser;
 mod seeded_rand;
 
@@ -10,6 +11,9 @@ use clap::Parser;
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Cli {
+    /// Seed for the random number generators
+    #[clap(long, default_value_t = 1)]
+    seed: u64,
     /// Input consensus to sample from.
     #[clap(long)]
     consensus: String,
@@ -23,9 +27,19 @@ struct Cli {
     /// Verify that the bandwidth weights are correct
     #[clap(long)]
     verify_weights: bool,
-    /// Seed for the random number generators
-    #[clap(long, default_value_t = 1)]
-    seed: u64,
+    /// Scale the consensus horizontally by this factor
+    #[clap(long)]
+    horz: Option<f32>,
+    /// when scaling the consensus horizontally, apply this factor to exits
+    #[clap(long, requires = "horz")]
+    horz_exit_factor: Option<f32>,
+    /// when scaling the consensus horizontally, apply this factor to guards
+    #[clap(long, requires = "horz")]
+    horz_guard_factor: Option<f32>,
+    /// when scaling the consensus horizontally, favor growing families or
+    /// creating new ones [0...1] (0 = only existing, 1 = only new)
+    #[clap(long, requires = "horz")]
+    prob_family_new: Option<f32>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut raw = String::new();
         let mut file = File::open(&cli.consensus).unwrap();
         file.read_to_string(&mut raw).unwrap();
-        parser::parse_consensus(&raw, asn_db)?
+        parser::parse_consensus(&raw, &asn_db)?
     };
 
     let descriptors = match cli.descriptors {
@@ -73,6 +87,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{}", s);
             }
         }
+    }
+
+    if let Some(scale) = cli.horz {
+        scale_horizontally(
+            &mut consensus,
+            scale,
+            cli.horz_exit_factor,
+            cli.horz_guard_factor,
+            &asn_db,
+            cli.prob_family_new
+                .expect("--prob-family-new needs to be specified"),
+        );
+        consensus.print_stats();
     }
 
     Ok(())

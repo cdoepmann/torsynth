@@ -193,12 +193,15 @@ pub struct ShallowRelay {
 
 impl ConsensusDocument {
     /// Parse a consensus document from raw text.
-    pub fn from_str(text: &str, asn_db: AsnDb) -> Result<ConsensusDocument, DocumentParseError> {
+    pub fn from_str(text: &str, asn_db: &AsnDb) -> Result<ConsensusDocument, DocumentParseError> {
         let doc = Document::parse_single(text)?;
         Self::from_doc(doc, asn_db)
     }
     /// Parse a consensus document from an already-parsed Tor meta document
-    pub fn from_doc(doc: Document, asn_db: AsnDb) -> Result<ConsensusDocument, DocumentParseError> {
+    pub fn from_doc(
+        doc: Document,
+        asn_db: &AsnDb,
+    ) -> Result<ConsensusDocument, DocumentParseError> {
         // the current relay we're constructing
         let mut relay: Option<ShallowRelayBuilder> = None;
 
