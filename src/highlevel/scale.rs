@@ -55,7 +55,8 @@ pub fn scale_horizontally(
     let prob_family_sameas = consensus.prob_family_sameas;
 
     // Determine weights of the relays to accommodate exit and guard weight factors.
-    let flag_weights = FlagWeights::from_flag_factors(&old_relays, exit_factor, guard_factor);
+    let flag_weights =
+        FlagWeights::from_flag_factors_by_number(&old_relays, 1.0, exit_factor, guard_factor);
 
     // list of results, helpers, etc.
     let mut new_relays_with_family = Vec::new(); // still need customization except for the family
@@ -377,8 +378,12 @@ impl FlagWeights {
         }
     }
 
-    /// Compute weights that accommodate factors for exit and guard growth
-    fn from_flag_factors(relays: &Vec<&Relay>, exit_factor: f32, guard_factor: f32) -> FlagWeights {
+    fn from_flag_factors_by_number(
+        relays: &Vec<&Relay>,
+        middle_factor: f32,
+        exit_factor: f32,
+        guard_factor: f32,
+    ) -> FlagWeights {
         // Count relays per class (E, G, D, M)
         let n_e = relays
             .iter()
@@ -392,10 +397,71 @@ impl FlagWeights {
             .iter()
             .filter(|x| x.has_flag(Flag::Exit) && x.has_flag(Flag::Guard))
             .count();
-        let _n_m = relays
+        let n_m = relays
             .iter()
             .filter(|x| !x.has_flag(Flag::Exit) && !x.has_flag(Flag::Guard))
             .count();
+
+        FlagWeights::from_flag_factors_by_value(
+            middle_factor,
+            exit_factor,
+            guard_factor,
+            n_e as f32,
+            n_g as f32,
+            n_d as f32,
+            n_m as f32,
+        )
+    }
+
+    fn from_flag_factors_by_bandwidth(
+        relays: &Vec<&Relay>,
+        middle_factor: f32,
+        exit_factor: f32,
+        guard_factor: f32,
+    ) -> FlagWeights {
+        // Sum up relay bandwidth per class (E, G, D, M)
+        let n_e = relays
+            .iter()
+            .filter(|x| x.has_flag(Flag::Exit) && !x.has_flag(Flag::Guard))
+            .map(|x| x.bandwidth_weight as f32)
+            .sum();
+        let n_g = relays
+            .iter()
+            .filter(|x| !x.has_flag(Flag::Exit) && x.has_flag(Flag::Guard))
+            .map(|x| x.bandwidth_weight as f32)
+            .sum();
+        let n_d = relays
+            .iter()
+            .filter(|x| x.has_flag(Flag::Exit) && x.has_flag(Flag::Guard))
+            .map(|x| x.bandwidth_weight as f32)
+            .sum();
+        let n_m = relays
+            .iter()
+            .filter(|x| !x.has_flag(Flag::Exit) && !x.has_flag(Flag::Guard))
+            .map(|x| x.bandwidth_weight as f32)
+            .sum();
+
+        FlagWeights::from_flag_factors_by_value(
+            middle_factor,
+            exit_factor,
+            guard_factor,
+            n_e,
+            n_g,
+            n_d,
+            n_m,
+        )
+    }
+
+    /// Compute weights that accommodate factors for exit and guard growth
+    fn from_flag_factors_by_value(
+        middle_factor: f32,
+        exit_factor: f32,
+        guard_factor: f32,
+        n_e: f32,
+        n_g: f32,
+        n_d: f32,
+        _n_m: f32,
+    ) -> FlagWeights {
         // Determine weights of the relays to accommodate exit and guard weight factors.
         // The ratios can be reached with any value chosen for weight_d (simple example:
         // always set it to 0). However, we also have the constraint that the weights
@@ -404,7 +470,7 @@ impl FlagWeights {
         // class of relays (G/E and D), then compute the other one so that it works
         // out. By setting the smaller factor first, we can be sure that the other
         // one will not become negative.
-        let weight_m = 1.0;
+        let weight_m = middle_factor;
         let (weight_g, weight_e, weight_d) = if guard_factor <= exit_factor {
             let weight_g = guard_factor;
             let weight_d = guard_factor;
@@ -486,4 +552,84 @@ impl NicknameGenerator {
     fn inc(&mut self) {
         self.num += 1;
     }
+}
+
+// - total scale
+//   - distribution by bandwidth weight (relative)
+//   - weigh by flag
+// - scale exits
+// - scale guards
+// - scale middle relays
+
+/*
+    --vertical-network-scale
+        --weigh-by-bandwidth
+        (--weigh-by-flag)
+CONFLICT WITH
+    --vertical-guard-scale
+    --vertical-exit-scale
+    --vertical-middle-scale
+*/
+
+// pub struct RelativeDistribution {}
+
+pub fn scale_vertically_by_bandwidth_rank(
+    consensus: &mut Consensus,
+    // bandwidth_distribution: Option<RelativeDistribution>,
+    scale_per_bandwidth: Vec<f32>,
+) {
+    let mut relays: Vec<_> = consensus.relays.values().collect();
+    let num_relays = relays.len();
+    let num_groups = scale_per_bandwidth.len();
+
+    if num_groups < 1 {
+        panic!("For scaling by bandwidth, at least one scale factor is needed.");
+    }
+    if num_relays < num_groups {
+        panic!("Cannot scale with more bandwidth groups than relays.");
+    }
+
+    relays.sort_unstable_by_key(|r| r.bandwidth_weight);
+    let mut bandwidth_to_scale: HashMap<Fingerprint, f32> = HashMap::new();
+    let last_scale = *(scale_per_bandwidth.last().unwrap());
+    for (scale, group_relays) in scale_per_bandwidth
+        .into_iter()
+        .chain([last_scale]) // use the last value for the remaining elements
+        .zip(relays.chunks(num_relays / num_groups))
+    {
+        for r in group_relays {
+            bandwidth_to_scale.insert(r.fingerprint.clone(), scale);
+        }
+    }
+    scale_vertically_by(consensus, |relay: &Relay| -> f32 {
+        bandwidth_to_scale[&relay.fingerprint]
+    });
+}
+
+pub fn scale_flag_groups_vertically(
+    consensus: &mut Consensus,
+    middle_scale: f32,
+    exit_scale: f32,
+    guard_scale: f32,
+) {
+    // Calculate the specific weights to accommodate relays that are
+    // guards and exits at the same time. We are vertically scaling the
+    // _groups_ of relays (their bandwidth).
+    let relays: Vec<_> = consensus.relays.values().collect();
+    let flag_weights =
+        FlagWeights::from_flag_factors_by_bandwidth(&relays, middle_scale, exit_scale, guard_scale);
+
+    let relay_weights = |relay: &Relay| -> f32 { flag_weights.get_relay_weight(relay) };
+    scale_vertically_by(consensus, relay_weights);
+}
+
+/// Scale a consensus given a function that defines each relay's scale factor
+fn scale_vertically_by<F: Fn(&Relay) -> f32>(consensus: &mut Consensus, relay_scale: F) {
+    for relay in consensus.relays.values_mut() {
+        relay.bandwidth_weight = ((relay.bandwidth_weight as f32) * relay_scale(relay)) as u64;
+    }
+
+    // Make sure all metrics are correct again
+    consensus.recompute_bw_weights();
+    consensus.recompute_stats();
 }

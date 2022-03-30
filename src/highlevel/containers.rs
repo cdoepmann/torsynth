@@ -244,6 +244,33 @@ impl Consensus {
                 *n as f32 / self.families.len() as f32
             );
         }
+
+        println!(
+            "Total bandwidth: {:8.3} GB/s",
+            self.relays
+                .values()
+                .map(|r| r.bandwidth_weight)
+                .sum::<u64>() as f32
+                / (1024 * 1024) as f32
+        );
+        println!(
+            "Exit bandwidth:  {:8.3} GB/s",
+            self.relays
+                .values()
+                .filter(|r| r.has_flag(Flag::Exit))
+                .map(|r| r.bandwidth_weight)
+                .sum::<u64>() as f32
+                / (1024 * 1024) as f32
+        );
+        println!(
+            "Guard bandwidth: {:8.3} GB/s",
+            self.relays
+                .values()
+                .filter(|r| r.has_flag(Flag::Guard))
+                .map(|r| r.bandwidth_weight)
+                .sum::<u64>() as f32
+                / (1024 * 1024) as f32
+        );
     }
 
     pub fn recompute_stats(&mut self) {

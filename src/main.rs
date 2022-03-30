@@ -1,5 +1,7 @@
 mod highlevel;
-use highlevel::scale_horizontally;
+use highlevel::{
+    scale_flag_groups_vertically, scale_horizontally, scale_vertically_by_bandwidth_rank,
+};
 mod parser;
 mod seeded_rand;
 
@@ -28,7 +30,7 @@ struct Cli {
     #[clap(long)]
     verify_weights: bool,
     /// Scale the consensus horizontally by this factor
-    #[clap(long)]
+    #[clap(long, requires = "prob-family-new")]
     horz: Option<f32>,
     /// when scaling the consensus horizontally, apply this factor to exits
     #[clap(long, requires = "horz")]
@@ -40,6 +42,21 @@ struct Cli {
     /// creating new ones [0...1] (0 = only existing, 1 = only new)
     #[clap(long, requires = "horz")]
     prob_family_new: Option<f32>,
+    /// Scale each relay's bandwidth in the network by this factor. This can
+    /// also be a comma-separated list of float values. In this case, this
+    /// defines different scale factors for relays of different bandwidth rank.
+    /// Each of the N value then denotes the scale for the respective N-quantile.
+    #[clap(long)]
+    scale_vert_by_bw_quantiles: Option<String>,
+    /// Scale the bandwidth of each middle relay by this factor
+    #[clap(long, conflicts_with = "scale-vert-by-bw-quantiles")]
+    vert_middle_scale: Option<f32>,
+    /// Scale the bandwidth of each exit relay by this factor
+    #[clap(long, conflicts_with = "scale-vert-by-bw-quantiles")]
+    vert_exit_scale: Option<f32>,
+    /// Scale the bandwidth of each guard relay by this factor
+    #[clap(long, conflicts_with = "scale-vert-by-bw-quantiles")]
+    vert_guard_scale: Option<f32>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -98,6 +115,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &asn_db,
             cli.prob_family_new
                 .expect("--prob-family-new needs to be specified"),
+        );
+        consensus.print_stats();
+    }
+    if let Some(raw) = cli.scale_vert_by_bw_quantiles {
+        let scales: Vec<f32> = raw.split(',').map(|x| x.parse().unwrap()).collect();
+        scale_vertically_by_bandwidth_rank(&mut consensus, scales);
+        consensus.print_stats();
+    } else if cli.vert_middle_scale.is_some()
+        || cli.vert_exit_scale.is_some()
+        || cli.vert_guard_scale.is_some()
+    {
+        scale_flag_groups_vertically(
+            &mut consensus,
+            cli.vert_middle_scale.unwrap_or(1.0),
+            cli.vert_exit_scale.unwrap_or(1.0),
+            cli.vert_guard_scale.unwrap_or(1.0),
         );
         consensus.print_stats();
     }
