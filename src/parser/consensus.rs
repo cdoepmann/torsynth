@@ -1,11 +1,14 @@
 //! Tor consensus documents
 
 use std::collections::BTreeMap;
+use std::net::Ipv4Addr;
 use std::num::ParseIntError;
+use std::rc::Rc;
 use std::str::FromStr;
 
 use super::DocumentParseError;
 
+use super::asn::{Asn, AsnDb};
 use super::meta;
 use meta::{Document, Fingerprint};
 
@@ -175,7 +178,8 @@ pub struct ShallowRelay {
     pub fingerprint: Fingerprint,
     pub digest: Fingerprint,
     pub published: DateTime<Utc>,
-    pub address: String,
+    pub address: Ipv4Addr,
+    pub asn: Option<Rc<Asn>>,
     pub or_port: u16,
     pub dir_port: Option<u16>,
     pub flags: Vec<Flag>,
@@ -189,12 +193,12 @@ pub struct ShallowRelay {
 
 impl ConsensusDocument {
     /// Parse a consensus document from raw text.
-    pub fn from_str(text: &str) -> Result<ConsensusDocument, DocumentParseError> {
+    pub fn from_str(text: &str, asn_db: AsnDb) -> Result<ConsensusDocument, DocumentParseError> {
         let doc = Document::parse_single(text)?;
-        Self::from_doc(doc)
+        Self::from_doc(doc, asn_db)
     }
     /// Parse a consensus document from an already-parsed Tor meta document
-    pub fn from_doc(doc: Document) -> Result<ConsensusDocument, DocumentParseError> {
+    pub fn from_doc(doc: Document, asn_db: AsnDb) -> Result<ConsensusDocument, DocumentParseError> {
         // the current relay we're constructing
         let mut relay: Option<ShallowRelayBuilder> = None;
 
@@ -225,7 +229,12 @@ impl ConsensusDocument {
                                 &format!("{published_1} {published_2}"),
                                 "%Y-%m-%d %H:%M:%S",
                             )?);
-                            relay.address(ip.to_string());
+                            let address = Ipv4Addr::from_str(ip).map_err(|_| {
+                                DocumentParseError::InvalidIpAddress(ip.to_string())
+                            })?;
+                            relay.address(address);
+                            let asn = asn_db.lookup(address);
+                            relay.asn(asn);
                             relay.or_port(u16::from_str_radix(or_port, 10)?);
                             relay.dir_port(match u16::from_str_radix(dir_port, 10)? {
                                 0 => None,

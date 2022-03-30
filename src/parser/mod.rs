@@ -15,8 +15,13 @@ pub use descriptor::Descriptor;
 
 pub mod highlevel;
 
-pub fn parse_consensus(text: &str) -> Result<ConsensusDocument, DocumentParseError> {
-    ConsensusDocument::from_str(text)
+pub mod asn;
+
+pub fn parse_consensus(
+    text: &str,
+    asn_db: asn::AsnDb,
+) -> Result<ConsensusDocument, DocumentParseError> {
+    ConsensusDocument::from_str(text, asn_db)
 }
 
 pub fn parse_descriptors(text: &str) -> Result<Vec<Descriptor>, DocumentParseError> {

@@ -3,11 +3,14 @@
 // std
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::net::Ipv4Addr;
+use std::rc::Rc;
 
 // external dependencies
 use chrono::{DateTime, Utc};
 
 // local modules
+use super::asn::{Asn, AsnDb};
 use super::consensus::{
     CondensedExitPolicy, Flag, Protocol, ShallowRelay, SupportedProtocolVersion,
 };
@@ -31,7 +34,8 @@ pub struct Relay {
     fingerprint: Fingerprint,
     digest: Fingerprint,
     published: DateTime<Utc>,
-    address: String,
+    address: Ipv4Addr,
+    asn: Option<Rc<Asn>>,
     or_port: u16,
     dir_port: Option<u16>,
     flags: Vec<Flag>,
@@ -56,6 +60,7 @@ impl Relay {
             digest: cons_relay.digest,
             published: cons_relay.published,
             address: cons_relay.address,
+            asn: cons_relay.asn,
             or_port: cons_relay.or_port,
             dir_port: cons_relay.dir_port,
             flags: cons_relay.flags,
@@ -145,7 +150,16 @@ impl Consensus {
         println!("relays in consensus: {}", relays.len());
         println!("unused descriptors: {}", descriptors.len());
         drop(descriptors);
-
+        let with_asn = {
+            let mut res = 0;
+            for r in relays.values() {
+                if let Some(_) = r.asn {
+                    res += 1;
+                }
+            }
+            res
+        };
+        println!("relays with AS: {}", with_asn);
         let mut res = Consensus {
             weights: consensus.weights,
             relays: relays,

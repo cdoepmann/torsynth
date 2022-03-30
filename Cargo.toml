@@ -16,3 +16,6 @@ strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"
 base64 = "0.13.0"
 sha1 = "0.10.1"
+treebitmap = "0.4.0"
+csv = "1.1"
+rand = "0.8.5"

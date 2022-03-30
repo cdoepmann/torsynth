@@ -47,6 +47,8 @@ pub enum DocumentParseError {
     MalformedConsensusWeights,
     #[error("Content range '{from}'...'{to}' not found")]
     ContentRangeNotFound { from: String, to: String },
+    #[error("Invalid IP address of relay: {0}")]
+    InvalidIpAddress(String),
 }
 
 impl DocumentParseError {
