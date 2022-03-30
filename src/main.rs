@@ -1,4 +1,5 @@
-mod parser;
+pub mod parser;
+pub mod writer;
 
 use std::fs::File;
 use std::io::prelude::*;

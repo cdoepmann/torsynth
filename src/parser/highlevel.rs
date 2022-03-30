@@ -22,29 +22,29 @@ use super::{ConsensusDocument, Fingerprint};
 /// respective relay server descriptors.
 #[derive(Debug)]
 pub struct Consensus {
-    weights: BTreeMap<String, u64>,
-    relays: HashMap<Fingerprint, Relay>,
+    pub weights: BTreeMap<String, u64>,
+    pub relays: HashMap<Fingerprint, Relay>,
 }
 
 /// A relay contained in the consensus
 #[derive(Debug, Clone)]
 pub struct Relay {
     // from consensus
-    nickname: String,
-    fingerprint: Fingerprint,
-    digest: Fingerprint,
-    published: DateTime<Utc>,
-    address: Ipv4Addr,
-    asn: Option<Rc<Asn>>,
-    or_port: u16,
-    dir_port: Option<u16>,
-    flags: Vec<Flag>,
-    version_line: String,
-    protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
-    exit_policy: CondensedExitPolicy,
-    bandwidth_weight: u64,
+    pub nickname: String,
+    pub fingerprint: Fingerprint,
+    pub digest: Fingerprint,
+    pub published: DateTime<Utc>,
+    pub address: Ipv4Addr,
+    pub asn: Option<Rc<Asn>>,
+    pub or_port: u16,
+    pub dir_port: Option<u16>,
+    pub flags: Vec<Flag>,
+    pub version_line: String,
+    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    pub exit_policy: CondensedExitPolicy,
+    pub bandwidth_weight: u64,
     // from descriptor
-    family_members: Vec<Fingerprint>,
+    pub family_members: Vec<Fingerprint>,
 }
 
 impl Relay {
@@ -76,6 +76,10 @@ impl Relay {
                 .filter_map(family_filter)
                 .collect(),
         }
+    }
+
+    pub fn has_flag(&self, flag: Flag) -> bool {
+        self.flags.contains(&flag)
     }
 }
 

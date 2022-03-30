@@ -20,7 +20,7 @@ use derive_builder::Builder;
 use strum::EnumString;
 
 /// A relay flag in the consensus
-#[derive(Debug, Clone, EnumString)]
+#[derive(Debug, Clone, Copy, EnumString, PartialEq, Eq)]
 pub enum Flag {
     Authority,
     BadExit,

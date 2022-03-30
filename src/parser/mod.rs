@@ -9,6 +9,7 @@ pub use meta::{Document, Fingerprint};
 
 mod consensus;
 pub use consensus::ConsensusDocument;
+pub use consensus::Flag;
 
 mod descriptor;
 pub use descriptor::Descriptor;
