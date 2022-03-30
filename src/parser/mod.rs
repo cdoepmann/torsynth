@@ -82,8 +82,8 @@ pub struct Document<'a> {
 
 impl<'a> Document<'a> {
     fn parse(text: &'a str) -> Result<Document<'a>, Box<dyn error::Error>> {
-        // let (i, items) = all_consuming(many0(Item::nom_parse))(text)
-        let (i, items) = many0(Item::nom_parse)(text)
+        let (i, items) = all_consuming(many0(Item::nom_parse))(text)
+            // let (i, items) = many0(Item::nom_parse)(text)
             .map_err(|e| e.to_owned())
             .finish()?;
         Ok(Document { items })
@@ -107,7 +107,7 @@ impl<'a> Item<'a> {
         let (i, _) = line_ending(i)?;
 
         // get objects following the first line
-        let (i, objs) = many1(Object::nom_parse)(i)?;
+        let (i, objs) = many0(Object::nom_parse)(i)?;
 
         // return everything
         Ok((
@@ -141,9 +141,7 @@ struct Object<'a> {
 impl<'a> Object<'a> {
     fn nom_parse(i: &'a str) -> IResult<&'a str, Object<'a>> {
         let (i, _) = tag("-----BEGIN ")(i)?;
-        // let (i, keyword) = recognize(many0(alt((nom_parse_keyword, space0))))(i)?;
         let (i, keyword) = recognize(many0(alt((alphanumeric1, space1))))(i)?;
-        dbg!(keyword);
         let (i, _) = tag("-----")(i)?;
         let (i, _) = line_ending(i)?;
 
@@ -158,7 +156,7 @@ impl<'a> Object<'a> {
                 // Otherwise, return this line as Some(...)
                 map(not_line_ending, |x: &str| Some(x)),
             ))(i)?;
-            let (i, _) = opt(line_ending)(i)?;
+            let (i, _) = line_ending(i)?;
             Ok((i, line))
         };
 
@@ -166,7 +164,7 @@ impl<'a> Object<'a> {
         let (i, _) = {
             let mut i = i;
             loop {
-                let (this_i, this_line) = dbg!(line_or_end(i))?;
+                let (this_i, this_line) = line_or_end(i)?;
                 i = this_i;
                 if let Some(l) = this_line {
                     lines.push(l);
@@ -195,7 +193,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_object() {
+    fn test_item_with_objects() {
         let doc = concat!(
             "directory-signature 0232AF901C31A04EE9848595AF9BB7620D4C5B2E 491466AA6B52156E455D9B545242C21D16A6880A\n",
             "-----BEGIN SIGNATURE-----\n",
@@ -216,7 +214,11 @@ mod tests {
             "-----END RSA PUBLIC KEY-----\n"
         );
 
-        println!("{:?}", Item::nom_parse(doc));
+        let (remaining, item) = Item::nom_parse(doc).unwrap();
+        assert_eq!(remaining, "");
+        assert_eq!(item.keyword, "directory-signature");
+        assert_eq!(item.objects[0].keyword, "SIGNATURE");
+        assert_eq!(item.objects[1].keyword, "RSA PUBLIC KEY");
     }
 
     // #[test]
