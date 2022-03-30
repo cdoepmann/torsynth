@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 use thiserror;
 
 /// Custom Error Type
@@ -11,6 +13,36 @@ pub enum DocumentParseError {
         line: usize,
         character: usize,
     },
+    #[error("When parsing a consensus, a relay did not have all necessary information")]
+    RelayIncomplete(#[from] super::consensus::ShallowRelayBuilderError),
+    #[error("An item with keyword '{keyword}' unexpectedly had no or not enough arguments")]
+    ItemArgumentsMissing { keyword: String },
+    #[error("An item with keyword '{keyword}' was not expected at this position")]
+    UnexpectedKeyword { keyword: String },
+    #[error("Could not decode string as base64")]
+    InvalidBase64(#[from] base64::DecodeError),
+    #[error("Could not parse date/time")]
+    InvalidDate(#[from] chrono::format::ParseError),
+    #[error("Could not parse integer")]
+    InvalidInt(#[from] ParseIntError),
+    #[error("Unknown flag '{flag}'")]
+    UnknownFlag { flag: String },
+    #[error("Unknown protocol '{protocol}'")]
+    UnknownProtocol { protocol: String },
+    #[error("Invalid protocol version '{raw}'")]
+    InvalidProtocolVersion { raw: String },
+    #[error("Invalid exit policy entry '{raw}'")]
+    InvalidExitPolicyEntry { raw: String },
+    #[error("Malformed exit policy")]
+    MalformedExitPolicy,
+    #[error("Invalid argument dictionary")]
+    InvalidArgumentDict,
+    #[error("Invalid bandwidth weight entry")]
+    InvalidBandwidthWeight,
+    #[error("Consensus weights missing")]
+    ConsensusWeightsMissing,
+    #[error("Consensus weights cannot be parsed")]
+    MalformedConsensusWeights,
 }
 
 impl DocumentParseError {

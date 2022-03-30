@@ -13,6 +13,7 @@ use nom::sequence::tuple;
 use nom::Finish;
 use nom::IResult;
 
+use base64;
 use phf::phf_map;
 
 /// The type of a Tor document (consensus, router descriptors, etc.)
@@ -35,7 +36,7 @@ impl DocumentType {
 }
 
 #[derive(Debug)]
-struct VersionedDocumentType {
+pub struct VersionedDocumentType {
     doctype: DocumentType,
     version: String,
 }
@@ -55,8 +56,8 @@ impl VersionedDocumentType {
 /// It does not contain any notion of one of the specific document types
 #[derive(Debug)]
 pub struct Document<'a> {
-    doctype: VersionedDocumentType,
-    items: Vec<Item<'a>>,
+    pub doctype: VersionedDocumentType,
+    pub items: Vec<Item<'a>>,
 }
 
 impl<'a> Document<'a> {
@@ -104,10 +105,10 @@ impl<'a> Document<'a> {
 
 /// A generic item within a Tor doc.
 #[derive(Debug)]
-struct Item<'a> {
-    keyword: &'a str,
-    arguments: Option<&'a str>,
-    objects: Vec<Object<'a>>,
+pub struct Item<'a> {
+    pub keyword: &'a str,
+    pub arguments: Option<&'a str>,
+    pub objects: Vec<Object<'a>>,
 }
 
 impl<'a> Item<'a> {
@@ -131,6 +132,21 @@ impl<'a> Item<'a> {
             },
         ))
     }
+
+    pub fn split_arguments(&self) -> Result<Vec<&str>, DocumentParseError> {
+        self.arguments
+            .ok_or_else(|| DocumentParseError::ItemArgumentsMissing {
+                keyword: self.keyword.to_string(),
+            })
+            .map(|x| x.split(' ').collect())
+    }
+
+    pub fn get_argument(&self) -> Result<&str, DocumentParseError> {
+        self.arguments
+            .ok_or_else(|| DocumentParseError::ItemArgumentsMissing {
+                keyword: self.keyword.to_string(),
+            })
+    }
 }
 
 fn nom_parse_keyword(i: &str) -> IResult<&str, &str> {
@@ -145,9 +161,9 @@ fn nom_parse_keyword(i: &str) -> IResult<&str, &str> {
 
 /// A multi-line object within a Tor document (e.g. a cryptographic key).
 #[derive(Debug)]
-struct Object<'a> {
-    keyword: &'a str,
-    lines: Vec<&'a str>,
+pub struct Object<'a> {
+    pub keyword: &'a str,
+    pub lines: Vec<&'a str>,
 }
 
 impl<'a> Object<'a> {
@@ -188,6 +204,20 @@ impl<'a> Object<'a> {
         };
 
         Ok((i, Object { keyword, lines }))
+    }
+}
+
+/// A relay fingerprint
+#[derive(Clone, Debug, PartialEq)]
+pub struct Fingerprint {
+    blob: Vec<u8>,
+}
+
+impl Fingerprint {
+    pub fn from_str_b64(raw_b64: &str) -> Result<Fingerprint, DocumentParseError> {
+        Ok(Fingerprint {
+            blob: base64::decode(raw_b64)?,
+        })
     }
 }
 
