@@ -10,6 +10,8 @@ use std::num::ParseIntError;
 use std::path::Path;
 use std::rc::Rc;
 
+use crate::seeded_rand::get_rng;
+
 use csv;
 use rand;
 use thiserror;
@@ -57,7 +59,7 @@ impl Asn {
         }
 
         let dist = WeightedIndex::new(ranges.iter().map(|x| x.len())).unwrap();
-        let mut rng = thread_rng();
+        let mut rng = get_rng();
         ranges[dist.sample(&mut rng)].sample_ip()
     }
 }
@@ -123,7 +125,7 @@ impl IpRange {
     pub fn sample_ip(&self) -> Ipv4Addr {
         use rand::prelude::*;
 
-        let mut rng = thread_rng();
+        let mut rng = get_rng();
         let i: u32 = rng.gen_range(0..self.len());
         self.index(i)
     }

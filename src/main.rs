@@ -1,5 +1,6 @@
 mod highlevel;
 mod parser;
+mod seeded_rand;
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -22,10 +23,15 @@ struct Cli {
     /// Verify that the bandwidth weights are correct
     #[clap(long)]
     verify_weights: bool,
+    /// Seed for the random number generators
+    #[clap(long, default_value_t = 1)]
+    seed: u64,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    seeded_rand::set_seed(cli.seed);
 
     let asn_db = parser::asn::AsnDb::new(&cli.asn_db)?;
 
