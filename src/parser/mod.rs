@@ -14,14 +14,8 @@ use consensus::ConsensusDocument;
 pub mod descriptor;
 use descriptor::Descriptor;
 
-pub mod asn;
-pub use asn::AsnDb;
-
-pub fn parse_consensus(
-    text: &str,
-    asn_db: &asn::AsnDb,
-) -> Result<ConsensusDocument, DocumentParseError> {
-    ConsensusDocument::from_str(text, asn_db)
+pub fn parse_consensus(text: &str) -> Result<ConsensusDocument, DocumentParseError> {
+    ConsensusDocument::from_str(text)
 }
 
 pub fn parse_descriptors(text: &str) -> Result<Vec<Descriptor>, DocumentParseError> {

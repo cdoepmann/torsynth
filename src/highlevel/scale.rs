@@ -7,9 +7,9 @@ use rand::distributions::weighted::WeightedError;
 use rand::seq::SliceRandom;
 use rand::Rng;
 
+use super::asn::{Asn, AsnDb};
 use super::families::{self, Family};
 use super::{Consensus, Relay};
-use crate::parser::asn::{Asn, AsnDb};
 use crate::parser::consensus::Flag;
 use crate::parser::Fingerprint;
 use crate::seeded_rand::get_rng;

@@ -8,6 +8,8 @@ mod seeded_rand;
 use std::fs::File;
 use std::io::prelude::*;
 
+use highlevel::asn::AsnDb;
+
 use clap::Parser;
 
 #[derive(Parser)]
@@ -64,13 +66,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     seeded_rand::set_seed(cli.seed);
 
-    let asn_db = parser::asn::AsnDb::new(&cli.asn_db)?;
+    let asn_db = AsnDb::new(&cli.asn_db)?;
 
     let consensus = {
         let mut raw = String::new();
         let mut file = File::open(&cli.consensus).unwrap();
         file.read_to_string(&mut raw).unwrap();
-        parser::parse_consensus(&raw, &asn_db)?
+        parser::parse_consensus(&raw)?
     };
 
     let descriptors = match cli.descriptors {
@@ -88,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // println!("{:?}", descriptors);
-    let consensus = highlevel::Consensus::combine_documents(consensus, descriptors);
+    let consensus = highlevel::Consensus::combine_documents(consensus, descriptors, &asn_db);
     // println!("{:?}", consensus);
 
     let mut consensus = consensus?;

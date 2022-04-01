@@ -15,11 +15,11 @@ use itertools;
 use regex::Regex;
 
 // local modules
+use super::asn::{Asn, AsnDb};
 use super::bwweights;
 use super::families;
 use super::families::Family;
 use crate::parser;
-use crate::parser::asn::Asn;
 use crate::parser::consensus::ConsensusDocument;
 use crate::parser::consensus::{
     CondensedExitPolicy, Flag, Protocol, ShallowRelay, SupportedProtocolVersion,
@@ -66,7 +66,7 @@ pub struct Relay {
 
 impl Relay {
     // TODO name
-    fn from_consensus_entry_and_descriptor(cons_relay: ShallowRelay) -> Relay {
+    fn from_consensus_entry_and_descriptor(cons_relay: ShallowRelay, asn_db: &AsnDb) -> Relay {
         Relay {
             // from consensus
             nickname: cons_relay.nickname,
@@ -74,7 +74,7 @@ impl Relay {
             digest: cons_relay.digest,
             published: cons_relay.published,
             address: cons_relay.address,
-            asn: cons_relay.asn,
+            asn: asn_db.lookup(cons_relay.address),
             or_port: cons_relay.or_port,
             dir_port: cons_relay.dir_port,
             flags: cons_relay.flags,
@@ -98,6 +98,7 @@ impl Consensus {
     pub fn combine_documents(
         consensus: ConsensusDocument,
         descriptors: Vec<Descriptor>,
+        asn_db: &AsnDb,
     ) -> Result<Consensus, DocumentCombiningError> {
         // index descriptors by digest
         let mut descriptors: HashMap<Fingerprint, Descriptor> = descriptors
@@ -167,7 +168,7 @@ impl Consensus {
             );
             relays.insert(
                 descriptor.fingerprint.clone(),
-                Relay::from_consensus_entry_and_descriptor(relay),
+                Relay::from_consensus_entry_and_descriptor(relay, asn_db),
             );
         }
         // only keep symmetric family relations etc.
