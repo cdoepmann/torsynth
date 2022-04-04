@@ -30,6 +30,9 @@ pub struct Descriptor {
     pub published: DateTime<Utc>,
     #[builder(default)]
     pub family_members: Vec<FamilyMember>,
+    pub bandwidth_avg: u64,
+    pub bandwidth_burst: u64,
+    pub bandwidth_observed: u64,
 }
 
 impl Descriptor {
@@ -85,6 +88,23 @@ impl Descriptor {
                 "published" => {
                     let arg = item.get_argument()?;
                     builder.published(Utc.datetime_from_str(arg, "%Y-%m-%d %H:%M:%S")?);
+                }
+                "bandwidth" => {
+                    let splits = item.split_arguments()?;
+                    match splits[..] {
+                        // bandwidth-avg bandwidth-burst bandwidth-observed
+                        [bandwidth_avg, bandwidth_burst, bandwidth_observed, ..] => {
+                            builder.bandwidth_avg(u64::from_str_radix(bandwidth_avg, 10)?);
+                            builder.bandwidth_burst(u64::from_str_radix(bandwidth_burst, 10)?);
+                            builder
+                                .bandwidth_observed(u64::from_str_radix(bandwidth_observed, 10)?);
+                        }
+                        _ => {
+                            return Err(DocumentParseError::ItemArgumentsMissing {
+                                keyword: item.keyword.to_string(),
+                            })
+                        }
+                    }
                 }
                 _ => {}
             }

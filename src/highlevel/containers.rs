@@ -62,11 +62,18 @@ pub struct Relay {
     pub bandwidth_weight: u64,
     // from descriptor
     pub family: Option<Rc<Family>>,
+    bw_ratio_avg: f32,
+    bw_ratio_burst: f32,
+    bw_ratio_observed: f32,
 }
 
 impl Relay {
     // TODO name
-    fn from_consensus_entry_and_descriptor(cons_relay: ShallowRelay, asn_db: &AsnDb) -> Relay {
+    fn from_consensus_entry_and_descriptor(
+        cons_relay: ShallowRelay,
+        descriptor: Descriptor,
+        asn_db: &AsnDb,
+    ) -> Relay {
         Relay {
             // from consensus
             nickname: cons_relay.nickname,
@@ -84,6 +91,10 @@ impl Relay {
             bandwidth_weight: cons_relay.bandwidth_weight,
             // from descriptor
             family: None, // do not set now, but later after all relays are known
+            bw_ratio_avg: descriptor.bandwidth_avg as f32 / cons_relay.bandwidth_weight as f32,
+            bw_ratio_burst: descriptor.bandwidth_burst as f32 / cons_relay.bandwidth_weight as f32,
+            bw_ratio_observed: descriptor.bandwidth_observed as f32
+                / cons_relay.bandwidth_weight as f32,
         }
     }
 
@@ -161,14 +172,15 @@ impl Consensus {
                 relay.fingerprint.clone(),
                 descriptor
                     .family_members
-                    .into_iter()
+                    .iter()
                     // keep only family members that do exist, and convert them to
+                    .cloned()
                     .filter_map(filter_family_member)
                     .collect(),
             );
             relays.insert(
                 descriptor.fingerprint.clone(),
-                Relay::from_consensus_entry_and_descriptor(relay, asn_db),
+                Relay::from_consensus_entry_and_descriptor(relay, descriptor, asn_db),
             );
         }
         // only keep symmetric family relations etc.
