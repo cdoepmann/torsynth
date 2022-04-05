@@ -32,6 +32,7 @@ use crate::parser::Fingerprint;
 /// respective relay server descriptors.
 #[derive(Debug)]
 pub struct Consensus {
+    pub valid_after: DateTime<Utc>,
     pub weights: BTreeMap<String, u64>,
     pub relays: HashMap<Fingerprint, Relay>,
     pub families: Vec<Rc<Family>>,
@@ -214,6 +215,7 @@ impl Consensus {
         let family_sizes = family_sizes(&family_objects);
 
         let res = Consensus {
+            valid_after: consensus.valid_after,
             weights: consensus.weights,
             relays: relays,
             families: family_objects,

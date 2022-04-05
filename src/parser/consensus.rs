@@ -165,6 +165,7 @@ impl FromStr for CondensedExitPolicy {
 /// A parsed consensus document ("network status").
 #[derive(Debug)]
 pub struct ConsensusDocument {
+    pub valid_after: DateTime<Utc>,
     pub relays: Vec<ShallowRelay>,
     pub weights: BTreeMap<String, u64>,
 }
@@ -379,7 +380,23 @@ impl ConsensusDocument {
 
             weights
         };
+
+        // collect valid-after
+        let valid_after = {
+            let item = doc
+                .items
+                .iter()
+                .skip_while(|&x| x.keyword != "valid-after")
+                .next()
+                .ok_or(DocumentParseError::ValidAfterMissing)?;
+            let arg = item.get_argument()?;
+            Utc.datetime_from_str(arg, "%Y-%m-%d %H:%M:%S")?
+        };
         // return everything
-        Ok(ConsensusDocument { relays, weights })
+        Ok(ConsensusDocument {
+            relays,
+            weights,
+            valid_after,
+        })
     }
 }
