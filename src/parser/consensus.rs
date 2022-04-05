@@ -1,9 +1,9 @@
 //! Tor consensus documents
 
 use std::collections::BTreeMap;
+use std::fmt;
 use std::net::Ipv4Addr;
 use std::num::ParseIntError;
-use std::rc::Rc;
 use std::str::FromStr;
 
 use super::DocumentParseError;
@@ -16,10 +16,10 @@ use meta::{Document, Fingerprint};
 //
 use chrono::{offset::TimeZone, DateTime, Utc};
 use derive_builder::Builder;
-use strum::EnumString;
+use strum::{EnumString, EnumVariantNames, IntoStaticStr, VariantNames};
 
 /// A relay flag in the consensus
-#[derive(Debug, Clone, Copy, EnumString, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, EnumString, EnumVariantNames, IntoStaticStr, PartialEq, Eq)]
 pub enum Flag {
     Authority,
     BadExit,
@@ -36,8 +36,14 @@ pub enum Flag {
     Valid,
 }
 
+impl Flag {
+    pub fn known_flags_string() -> String {
+        Flag::VARIANTS.join(" ")
+    }
+}
+
 /// A Tor sub-protocol
-#[derive(Debug, Clone, EnumString, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Debug, Clone, EnumString, IntoStaticStr, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Protocol {
     Cons,
     Desc,
@@ -65,6 +71,40 @@ impl SupportedProtocolVersion {
     }
 }
 
+impl fmt::Display for SupportedProtocolVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut last_version = None;
+        let mut range_end = None;
+        for v in self.versions.iter().copied() {
+            match last_version {
+                Some(last) => {
+                    if v == last + 1 {
+                        if range_end.is_none() {
+                            write!(f, "-")?;
+                        }
+                        range_end = Some(v);
+                    } else {
+                        if let Some(x) = range_end.take() {
+                            write!(f, "{}", x)?;
+                        }
+                        write!(f, ",{}", v)?;
+                    }
+                }
+                None => {
+                    // first element
+                    write!(f, "{}", v)?;
+                }
+            }
+            last_version = Some(v);
+        }
+        if let Some(x) = range_end.take() {
+            write!(f, "{}", x)?;
+        }
+
+        Ok(())
+    }
+}
+
 impl FromStr for SupportedProtocolVersion {
     type Err = DocumentParseError;
 
@@ -87,6 +127,7 @@ impl FromStr for SupportedProtocolVersion {
                 }
             }
         }
+        versions.sort_unstable();
         Ok(SupportedProtocolVersion { versions })
     }
 }
@@ -132,6 +173,20 @@ impl FromStr for PolicyEntry {
     }
 }
 
+impl fmt::Display for PolicyEntry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PolicyEntry::SinglePort(x) => {
+                write!(f, "{}", x)?;
+            }
+            PolicyEntry::PortRange { min: x, max: y } => {
+                write!(f, "{}-{}", x, y)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A relay's condensed exit policy (ports for "most" target IP addresses)
 #[derive(Debug, Clone)]
 pub struct CondensedExitPolicy {
@@ -159,6 +214,26 @@ impl FromStr for CondensedExitPolicy {
             policy_type,
             entries,
         })
+    }
+}
+
+impl fmt::Display for CondensedExitPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} {}",
+            match self.policy_type {
+                PolicyType::Accept => "accept",
+                PolicyType::Reject => "reject",
+            },
+            self.entries
+                .iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+        .unwrap();
+        Ok(())
     }
 }
 

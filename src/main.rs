@@ -31,6 +31,8 @@ struct Cli {
     /// Verify that the bandwidth weights are correct
     #[clap(long)]
     verify_weights: bool,
+    #[clap(long, short)]
+    output_dir: Option<String>,
     /// Scale the consensus horizontally by this factor
     #[clap(long, requires = "prob-family-new")]
     horz: Option<f32>,
@@ -135,6 +137,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cli.vert_guard_scale.unwrap_or(1.0),
         );
         consensus.print_stats();
+    }
+
+    if let Some(output_dir) = cli.output_dir {
+        highlevel::output::save_to_dir(&consensus, &output_dir)?;
     }
 
     Ok(())

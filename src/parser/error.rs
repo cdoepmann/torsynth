@@ -45,6 +45,8 @@ pub enum DocumentParseError {
     ConsensusWeightsMissing,
     #[error("Consensus weights cannot be parsed")]
     MalformedConsensusWeights,
+    #[error("valid-after missing")]
+    ValidAfterMissing,
     #[error("Content range '{from}'...'{to}' not found")]
     ContentRangeNotFound { from: String, to: String },
     #[error("Invalid IP address of relay: {0}")]

@@ -41,13 +41,9 @@ impl Descriptor {
         let mut builder = DescriptorBuilder::default();
 
         // compute digest
-        builder.digest({
-            let content = doc.get_raw_content_between("router", "\nrouter-signature\n")?;
-            let mut hasher = Sha1::new();
-            hasher.update(content);
-            let result = hasher.finalize();
-            Fingerprint::from_u8(&result)
-        });
+        builder.digest(Descriptor::digest_from_raw(
+            doc.get_raw_content_between("router", "\nrouter-signature\n")?,
+        ));
 
         for item in doc.items.iter() {
             match item.keyword {
@@ -111,5 +107,14 @@ impl Descriptor {
         }
 
         Ok(builder.build()?)
+    }
+
+    /// Compute te digest given the extracted raw content
+    pub fn digest_from_raw<R: AsRef<[u8]>>(raw: R) -> Fingerprint {
+        let raw = raw.as_ref();
+        let mut hasher = Sha1::new();
+        hasher.update(raw);
+        let result = hasher.finalize();
+        Fingerprint::from_u8(&result)
     }
 }

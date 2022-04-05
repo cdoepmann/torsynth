@@ -63,9 +63,9 @@ pub struct Relay {
     pub bandwidth_weight: u64,
     // from descriptor
     pub family: Option<Rc<Family>>,
-    bw_ratio_avg: f32,
-    bw_ratio_burst: f32,
-    bw_ratio_observed: f32,
+    pub bw_ratio_avg: f32,
+    pub bw_ratio_burst: f32,
+    pub bw_ratio_observed: f32,
 }
 
 impl Relay {

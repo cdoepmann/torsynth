@@ -264,6 +264,38 @@ impl Fingerprint {
     pub fn from_u8(raw: &[u8]) -> Fingerprint {
         Fingerprint { blob: raw.to_vec() }
     }
+
+    pub fn to_string_b64(&self) -> String {
+        base64::encode(&self.blob).trim_end_matches('=').to_string()
+    }
+
+    pub fn to_string_hex(&self) -> String {
+        format!("{}", self)
+    }
+
+    pub fn to_string_hex_blocks(&self) -> String {
+        use std::fmt::Write;
+
+        let mut res = String::new();
+        let mut iter = self.blob.chunks(2).peekable();
+
+        loop {
+            let chunk = match iter.next() {
+                Some(x) => x,
+                None => {
+                    break;
+                }
+            };
+
+            for byte in chunk {
+                write!(&mut res, "{:02X}", byte).unwrap();
+            }
+            if let Some(_) = iter.peek() {
+                write!(&mut res, " ").unwrap();
+            }
+        }
+        res
+    }
 }
 
 impl fmt::Display for Fingerprint {
