@@ -66,6 +66,7 @@ pub struct Relay {
     pub bw_ratio_avg: f32,
     pub bw_ratio_burst: f32,
     pub bw_ratio_observed: f32,
+    pub bw_observed_was_zero: bool,
 }
 
 impl Relay {
@@ -96,6 +97,7 @@ impl Relay {
             bw_ratio_burst: descriptor.bandwidth_burst as f32 / cons_relay.bandwidth_weight as f32,
             bw_ratio_observed: descriptor.bandwidth_observed as f32
                 / cons_relay.bandwidth_weight as f32,
+            bw_observed_was_zero: descriptor.bandwidth_observed == 0,
         }
     }
 
@@ -308,6 +310,19 @@ impl Consensus {
                 old_weights, new_weights
             ));
         }
+    }
+
+    /// Remove all relays from the consensus that meet a certain condition
+    pub fn remove_relays_by<F: FnMut(&Relay) -> bool>(&mut self, mut condition: F) {
+        // remove relays
+        self.relays.retain(|_, v| !condition(v));
+
+        // adjust family objects
+        self.families = families::recompute_families(&mut self.relays);
+
+        // recompute weights and stats
+        self.recompute_bw_weights();
+        self.recompute_stats();
     }
 }
 

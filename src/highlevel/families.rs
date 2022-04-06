@@ -103,6 +103,7 @@ pub fn size_histogram(families: &Vec<Rc<Family>>) -> Vec<(usize, usize)> {
 /// Compute new family objects based on relays' family references. This, e.g.,
 /// grows the families if new relays have "joined" the family by having added
 /// a reference pointing to that family to their properties.
+/// Also, if relays have been removed, the families are shrinked or destroyed.
 /// Modifies all relays and also returns the new family objects
 pub fn recompute_families(relays: &mut HashMap<Fingerprint, Relay>) -> Vec<Rc<Family>> {
     let mut members = HashMap::<*const Family, Vec<Fingerprint>>::new();
@@ -113,18 +114,27 @@ pub fn recompute_families(relays: &mut HashMap<Fingerprint, Relay>) -> Vec<Rc<Fa
         }
     }
     // make the new objects
-    let mut new_families = HashMap::<*const Family, Rc<Family>>::new();
+    let mut new_families = HashMap::<*const Family, Option<Rc<Family>>>::new();
     for (ptr, members) in members.into_iter() {
-        new_families.insert(ptr, Rc::new(Family { members }));
+        new_families.insert(
+            ptr,
+            if members.len() > 1 {
+                Some(Rc::new(Family { members }))
+            } else {
+                None
+            },
+        );
     }
 
-    // change relays to point to the new family objects
+    // change relays to point to the new family objects (or None if there is
+    // only one family member remaining)
     for (_, relay) in relays.iter_mut() {
-        if let Some(fam) = relay.family.as_mut() {
-            *fam = new_families[&Rc::as_ptr(fam)].clone();
-        }
+        relay.family = relay
+            .family
+            .take()
+            .and_then(|fam| new_families[&Rc::as_ptr(&fam)].clone());
     }
 
-    // return the new family objects
-    new_families.into_values().collect()
+    // return the new family objects (keep only non-None-ones)
+    new_families.into_values().filter_map(|x| x).collect()
 }

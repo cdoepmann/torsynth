@@ -7,6 +7,7 @@ use std::io;
 use std::io::prelude::*;
 use std::path::Path;
 
+use chrono::Duration;
 use thiserror;
 
 use super::Consensus;
@@ -61,7 +62,8 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
     writeln!(
         &mut f_consensus,
         "valid-after {}",
-        consensus.valid_after.format("%Y-%m-%d %H:%M:%S")
+        (consensus.valid_after.date().and_hms(0, 0, 0) - Duration::hours(1))
+            .format("%Y-%m-%d %H:%M:%S")
     )?;
     writeln!(
         &mut f_consensus,
@@ -88,7 +90,8 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
             writeln!(
                 &mut desc,
                 "published {}",
-                consensus.valid_after.format("%Y-%m-%d %H:%M:%S")
+                (consensus.valid_after.date().and_hms(0, 0, 0) - Duration::hours(1))
+                    .format("%Y-%m-%d %H:%M:%S")
             )?;
             writeln!(
                 &mut desc,
@@ -137,7 +140,8 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
             relay.nickname,
             relay.fingerprint.to_string_b64(),
             desc_digest.to_string_b64(),
-            consensus.valid_after.format("%Y-%m-%d %H:%M:%S"),
+            (consensus.valid_after.date().and_hms(0, 0, 0) - Duration::hours(1))
+                .format("%Y-%m-%d %H:%M:%S"),
             relay.address,
             9001, // TODO or_port
             0,    // TODO dir_port

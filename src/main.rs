@@ -61,6 +61,10 @@ struct Cli {
     /// Scale the bandwidth of each guard relay by this factor
     #[clap(long, conflicts_with = "scale-vert-by-bw-quantiles")]
     vert_guard_scale: Option<f32>,
+    /// Remove relays that have an observed bandwidth of zero. This is done
+    /// plainly by ignoring the respective descriptors if they are observed.
+    #[clap(long)]
+    remove_idle_relays: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -96,6 +100,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("{:?}", consensus);
 
     let mut consensus = consensus?;
+
+    if cli.remove_idle_relays {
+        let mut removed = 0;
+
+        consensus.remove_relays_by(|r| {
+            let remove = r.bw_observed_was_zero;
+            if remove {
+                removed += 1;
+            }
+            remove
+        });
+        println!("Removed {removed} relays that have an observed bandwidth of zero...")
+    }
 
     if cli.verify_weights {
         println!("verifying bw weights...");
