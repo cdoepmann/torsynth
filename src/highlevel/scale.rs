@@ -514,7 +514,7 @@ struct FingerprintGenerator {
 impl FingerprintGenerator {
     fn new() -> FingerprintGenerator {
         FingerprintGenerator {
-            state: vec![0u8; 40],
+            state: vec![0u8; 20],
         }
     }
 
@@ -546,7 +546,7 @@ impl NicknameGenerator {
 
     fn get_nickname(&mut self) -> String {
         self.inc();
-        format!("torscaler-dsi-{}", self.num)
+        format!("DsiDsi{}", self.num)
     }
 
     fn inc(&mut self) {

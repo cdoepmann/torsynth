@@ -216,6 +216,12 @@ impl Consensus {
         let prob_family_sameas = prob_family_sameas(&family_objects, &relays);
         let family_sizes = family_sizes(&family_objects);
 
+        for relay in relays.values() {
+            if !relay.has_flag(Flag::Valid) {
+                println!("not valid: {}", relay.nickname);
+            }
+        }
+
         let res = Consensus {
             valid_after: consensus.valid_after,
             weights: consensus.weights,
