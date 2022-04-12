@@ -13,3 +13,6 @@ pub use scale::{
 pub mod asn;
 
 pub mod output;
+
+pub mod reproducible_hash_map;
+pub use reproducible_hash_map::{RHashMap, RHashSet};

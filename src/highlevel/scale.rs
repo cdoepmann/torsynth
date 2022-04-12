@@ -1,6 +1,6 @@
 //! Algorithms for scaling Tor consensuses.
 
-use std::collections::HashMap;
+use crate::highlevel::RHashMap;
 use std::rc::Rc;
 
 use rand::distributions::weighted::WeightedError;
@@ -147,7 +147,7 @@ pub fn scale_horizontally(
             .copied()
             .collect();
         let family_size_frequencies =
-            HashMap::<usize, usize>::from_iter(consensus.family_sizes.iter().copied());
+            RHashMap::<usize, usize>::from_iter(consensus.family_sizes.iter().copied());
         'outer: loop {
             let mut remaining = new_relays_needing_family.len();
             let mut sizes = Vec::new();
@@ -590,7 +590,7 @@ pub fn scale_vertically_by_bandwidth_rank(
     }
 
     relays.sort_unstable_by_key(|r| r.bandwidth_weight);
-    let mut bandwidth_to_scale: HashMap<Fingerprint, f32> = HashMap::new();
+    let mut bandwidth_to_scale: RHashMap<Fingerprint, f32> = RHashMap::default();
     let last_scale = *(scale_per_bandwidth.last().unwrap());
     for (scale, group_relays) in scale_per_bandwidth
         .into_iter()

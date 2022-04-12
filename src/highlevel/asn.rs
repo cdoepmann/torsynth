@@ -1,8 +1,8 @@
 //! Handling of IP -> AS lookup as well as sampling from AS IP ranges.
 
+use crate::highlevel::RHashMap;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::fs::File;
 use std::net::Ipv4Addr;
 use std::num::ParseIntError;
@@ -34,7 +34,7 @@ pub enum AsnDbError {
 
 pub struct AsnDb {
     as_lookup: IpLookupTable<Ipv4Addr, u32>,
-    as_objects: HashMap<u32, Rc<Asn>>, // We use an Rc<_> so we can give out handles to the Asn struct
+    as_objects: RHashMap<u32, Rc<Asn>>, // We use an Rc<_> so we can give out handles to the Asn struct
 }
 
 #[derive(Debug)]
@@ -143,7 +143,7 @@ impl AsnDb {
         let mut rdr = csv::Reader::from_reader(file);
 
         let mut as_lookup = IpLookupTable::new();
-        let mut as_objects: HashMap<u32, Rc<Asn>> = HashMap::new();
+        let mut as_objects: RHashMap<u32, Rc<Asn>> = RHashMap::default();
 
         for result in rdr.records() {
             let record = result?;

@@ -1,8 +1,9 @@
 //! Helpers to work with parsed Tor data on a high level.
 
 // std
+use crate::highlevel::{RHashMap, RHashSet};
 use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::Ipv4Addr;
@@ -34,7 +35,7 @@ use crate::parser::Fingerprint;
 pub struct Consensus {
     pub valid_after: DateTime<Utc>,
     pub weights: BTreeMap<String, u64>,
-    pub relays: HashMap<Fingerprint, Relay>,
+    pub relays: RHashMap<Fingerprint, Relay>,
     pub families: Vec<Rc<Family>>,
     /// Probability that a relay is in a family
     pub prob_family: f32,
@@ -115,19 +116,20 @@ impl Consensus {
         asn_db: &AsnDb,
     ) -> Result<Consensus, DocumentCombiningError> {
         // index descriptors by digest
-        let mut descriptors: HashMap<Fingerprint, Descriptor> = descriptors
+        let mut descriptors: RHashMap<Fingerprint, Descriptor> = descriptors
             .into_iter()
             .map(|d| (d.digest.clone(), d))
             .collect();
         // remember which fingerprints are in the consensus
-        let known_fingerprints: HashSet<Fingerprint> = consensus
+        let known_fingerprints: RHashSet<Fingerprint> = consensus
             .relays
             .iter()
             .map(|r| r.fingerprint.clone())
             .collect();
 
         // remember **unique** nicknames
-        let mut nicknames_to_fingerprints: HashMap<String, Option<Fingerprint>> = HashMap::new();
+        let mut nicknames_to_fingerprints: RHashMap<String, Option<Fingerprint>> =
+            RHashMap::default();
         {
             for relay in consensus.relays.iter() {
                 let nickname = relay.nickname.clone();
@@ -161,9 +163,9 @@ impl Consensus {
             }
         };
 
-        let mut family_relations: HashMap<Fingerprint, Vec<Fingerprint>> = HashMap::new();
+        let mut family_relations: RHashMap<Fingerprint, Vec<Fingerprint>> = RHashMap::default();
 
-        let mut relays: HashMap<Fingerprint, Relay> = HashMap::new();
+        let mut relays: RHashMap<Fingerprint, Relay> = RHashMap::default();
         for relay in consensus.relays {
             let descriptor = descriptors.remove(&relay.digest).ok_or_else(|| {
                 DocumentCombiningError::MissingDescriptor {
@@ -216,11 +218,11 @@ impl Consensus {
         let prob_family_sameas = prob_family_sameas(&family_objects, &relays);
         let family_sizes = family_sizes(&family_objects);
 
-        for relay in relays.values() {
-            if !relay.has_flag(Flag::Valid) {
-                println!("not valid: {}", relay.nickname);
-            }
-        }
+        // for relay in relays.values() {
+        //     if !relay.has_flag(Flag::Valid) {
+        //         println!("not valid: {}", relay.nickname);
+        //     }
+        // }
 
         let res = Consensus {
             valid_after: consensus.valid_after,
@@ -332,13 +334,13 @@ impl Consensus {
     }
 }
 
-fn prob_family(relays: &HashMap<Fingerprint, Relay>) -> f32 {
+fn prob_family(relays: &RHashMap<Fingerprint, Relay>) -> f32 {
     relays.values().filter(|x| x.family.is_some()).count() as f32 / relays.len() as f32
 }
 
 fn prob_family_sameas(
     family_objects: &Vec<Rc<Family>>,
-    relays: &HashMap<Fingerprint, Relay>,
+    relays: &RHashMap<Fingerprint, Relay>,
 ) -> f32 {
     family_objects
         .iter()

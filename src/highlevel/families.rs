@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use crate::highlevel::{RHashMap, RHashSet};
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use super::Relay;
@@ -12,10 +13,10 @@ pub struct Family {
 /// Make sure that relays who are "connected" over a path of "same-family" relations
 /// are also considered to be part of the same family.
 pub fn make_cliques(
-    family_relations: HashMap<Fingerprint, Vec<Fingerprint>>,
-) -> (HashMap<Fingerprint, Option<Rc<Family>>>, Vec<Rc<Family>>) {
+    family_relations: RHashMap<Fingerprint, Vec<Fingerprint>>,
+) -> (RHashMap<Fingerprint, Option<Rc<Family>>>, Vec<Rc<Family>>) {
     let mut family_relations = family_relations;
-    let mut result = HashMap::new();
+    let mut result = RHashMap::default();
     let mut families = Vec::new();
 
     // iterate over all relays
@@ -52,16 +53,16 @@ pub fn make_cliques(
 /// their family members etc, returning all the fingerprints if the original relay
 /// had family members.
 fn remove_transitively(
-    map: &mut HashMap<Fingerprint, Vec<Fingerprint>>,
+    map: &mut RHashMap<Fingerprint, Vec<Fingerprint>>,
     relay: Fingerprint,
-) -> HashSet<Fingerprint> {
+) -> RHashSet<Fingerprint> {
     let mut map = map;
 
     // Get the family members and remove the entry
-    let mut family_members: HashSet<Fingerprint> = match map.remove(&relay) {
+    let mut family_members: RHashSet<Fingerprint> = match map.remove(&relay) {
         None => {
             // If the relay was already removed, return nothing
-            return HashSet::new();
+            return RHashSet::default();
         }
         Some(x) => x.into_iter().collect(),
     };
@@ -80,7 +81,7 @@ fn remove_transitively(
 
 /// Make sure that (1) families only contain relays that mirror this relationship, and
 ///                (2) relays do not list themselves as family members
-pub fn clean_families(family_relations: &mut HashMap<Fingerprint, Vec<Fingerprint>>) {
+pub fn clean_families(family_relations: &mut RHashMap<Fingerprint, Vec<Fingerprint>>) {
     let family_relations_copy = family_relations.clone();
     for (this_fingerprint, relay) in family_relations.iter_mut() {
         relay.retain(|fp| {
@@ -105,8 +106,8 @@ pub fn size_histogram(families: &Vec<Rc<Family>>) -> Vec<(usize, usize)> {
 /// a reference pointing to that family to their properties.
 /// Also, if relays have been removed, the families are shrinked or destroyed.
 /// Modifies all relays and also returns the new family objects
-pub fn recompute_families(relays: &mut HashMap<Fingerprint, Relay>) -> Vec<Rc<Family>> {
-    let mut members = HashMap::<*const Family, Vec<Fingerprint>>::new();
+pub fn recompute_families(relays: &mut RHashMap<Fingerprint, Relay>) -> Vec<Rc<Family>> {
+    let mut members = RHashMap::<*const Family, Vec<Fingerprint>>::default();
     // collect the members
     for (fp, relay) in relays.iter() {
         if let Some(fam) = &relay.family {
@@ -114,7 +115,7 @@ pub fn recompute_families(relays: &mut HashMap<Fingerprint, Relay>) -> Vec<Rc<Fa
         }
     }
     // make the new objects
-    let mut new_families = HashMap::<*const Family, Option<Rc<Family>>>::new();
+    let mut new_families = RHashMap::<*const Family, Option<Rc<Family>>>::default();
     for (ptr, members) in members.into_iter() {
         new_families.insert(
             ptr,
