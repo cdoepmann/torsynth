@@ -15,8 +15,9 @@ use clap::Parser;
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Cli {
-    /// Seed for the random number generators
-    #[clap(long, default_value_t = 1)]
+    /// Seed for the random number generators. If 0 or omitted, generate and print
+    /// a random seed.
+    #[clap(long, default_value_t = 0)]
     seed: u64,
     /// Input consensus to sample from.
     #[clap(long)]
@@ -70,7 +71,16 @@ struct Cli {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    seeded_rand::set_seed(cli.seed);
+    seeded_rand::set_seed(if cli.seed == 0 {
+        let new_seed = seeded_rand::generate_random_seed();
+        println!(
+            "No seed was given. Call with \"--seed {}\" to reproduce this run.",
+            new_seed
+        );
+        new_seed
+    } else {
+        cli.seed
+    });
 
     let asn_db = AsnDb::new(&cli.asn_db)?;
 

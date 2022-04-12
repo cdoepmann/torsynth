@@ -25,6 +25,16 @@ lazy_static! {
     static ref GLOBAL_STATE: Mutex<GlobalState> = Mutex::new(GlobalState::new());
 }
 
+/// Use "real" randomness to generate a random seed (using `thread_rng()`).
+pub fn generate_random_seed() -> u64 {
+    loop {
+        let seed = rand::random();
+        if seed != 0 {
+            return seed;
+        }
+    }
+}
+
 pub fn set_seed(seed: u64) {
     let mut global_state = GLOBAL_STATE.lock().unwrap();
     global_state.seed = seed;
