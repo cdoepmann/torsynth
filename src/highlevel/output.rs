@@ -1,5 +1,6 @@
 //! Dump a highlevel consensus to Tor descriptor files
 
+use std::cmp::min;
 use std::fmt;
 use std::fs;
 use std::fs::File;
@@ -101,9 +102,18 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
             writeln!(
                 &mut desc,
                 "bandwidth {} {} {}",
-                (relay.bandwidth_weight as f32 * relay.bw_ratio_avg as f32) as u64,
-                (relay.bandwidth_weight as f32 * relay.bw_ratio_burst as f32) as u64,
-                (relay.bandwidth_weight as f32 * relay.bw_ratio_observed as f32) as u64,
+                min(
+                    (relay.bandwidth_weight as f32 * relay.bw_ratio_avg as f32) as u64,
+                    2147483500
+                ),
+                min(
+                    (relay.bandwidth_weight as f32 * relay.bw_ratio_burst as f32) as u64,
+                    2147483500
+                ),
+                min(
+                    (relay.bandwidth_weight as f32 * relay.bw_ratio_observed as f32) as u64,
+                    2147483500
+                ),
             )?;
             if let Some(ref fam) = relay.family {
                 writeln!(
