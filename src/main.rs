@@ -10,7 +10,7 @@ use std::io::prelude::*;
 
 use highlevel::asn::AsnDb;
 
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -19,6 +19,18 @@ struct Cli {
     /// a random seed.
     #[clap(long, default_value_t = 0)]
     seed: u64,
+    /// Command to execute
+    #[clap(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    Scale(ScaleArgs),
+}
+
+#[derive(Args)]
+struct ScaleArgs {
     /// Input consensus to sample from.
     #[clap(long)]
     consensus: String,
@@ -68,6 +80,105 @@ struct Cli {
     remove_idle_relays: bool,
 }
 
+fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+    let cli_scale = if let Command::Scale(x) = cli.command {
+        x
+    } else {
+        panic!("wrong command");
+    };
+
+    let asn_db = AsnDb::new(&cli_scale.asn_db)?;
+
+    let consensus = {
+        let mut raw = String::new();
+        let mut file = File::open(&cli_scale.consensus).unwrap();
+        file.read_to_string(&mut raw).unwrap();
+        parser::parse_consensus(&raw)?
+    };
+
+    let descriptors = match cli_scale.descriptors {
+        Some(ref desc_path) => {
+            // Descriptors are given as a file
+            let mut raw = String::new();
+            let mut file = File::open(desc_path).unwrap();
+            file.read_to_string(&mut raw).unwrap();
+            parser::parse_descriptors(&raw)?
+        }
+        None => {
+            // Load descriptors from files relative to the consensus file
+            highlevel::lookup_descriptors(&consensus, cli_scale.consensus)?
+        }
+    };
+
+    // println!("{:?}", descriptors);
+    let consensus = highlevel::Consensus::combine_documents(consensus, descriptors, &asn_db);
+    // println!("{:?}", consensus);
+
+    let mut consensus = consensus?;
+
+    if cli_scale.remove_idle_relays {
+        let mut removed = 0;
+
+        consensus.remove_relays_by(|r| {
+            let remove = r.bw_observed_was_zero;
+            if remove {
+                removed += 1;
+            }
+            remove
+        });
+        println!("Removed {removed} relays that have an observed bandwidth of zero...")
+    }
+
+    if cli_scale.verify_weights {
+        println!("verifying bw weights...");
+        match consensus.verify_weights() {
+            Ok(_) => {
+                println!("bw weights match.");
+            }
+            Err(s) => {
+                println!("bw weights do not match:");
+                println!("{}", s);
+            }
+        }
+    }
+
+    if let Some(scale) = cli_scale.horz {
+        scale_horizontally(
+            &mut consensus,
+            scale,
+            cli_scale.horz_exit_factor,
+            cli_scale.horz_guard_factor,
+            &asn_db,
+            cli_scale
+                .prob_family_new
+                .expect("--prob-family-new needs to be specified"),
+        );
+        consensus.print_stats();
+    }
+    if let Some(raw) = cli_scale.scale_vert_by_bw_quantiles {
+        let scales: Vec<f32> = raw.split(',').map(|x| x.parse().unwrap()).collect();
+        scale_vertically_by_bandwidth_rank(&mut consensus, scales);
+        consensus.print_stats();
+    } else if cli_scale.vert_middle_scale.is_some()
+        || cli_scale.vert_exit_scale.is_some()
+        || cli_scale.vert_guard_scale.is_some()
+    {
+        scale_flag_groups_vertically(
+            &mut consensus,
+            cli_scale.vert_middle_scale.unwrap_or(1.0),
+            cli_scale.vert_exit_scale.unwrap_or(1.0),
+            cli_scale.vert_guard_scale.unwrap_or(1.0),
+        );
+        consensus.print_stats();
+    }
+
+    if let Some(output_dir) = cli_scale.output_dir {
+        highlevel::output::save_to_dir(&consensus, &output_dir)?;
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
@@ -82,93 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         cli.seed
     });
 
-    let asn_db = AsnDb::new(&cli.asn_db)?;
-
-    let consensus = {
-        let mut raw = String::new();
-        let mut file = File::open(&cli.consensus).unwrap();
-        file.read_to_string(&mut raw).unwrap();
-        parser::parse_consensus(&raw)?
-    };
-
-    let descriptors = match cli.descriptors {
-        Some(ref desc_path) => {
-            // Descriptors are given as a file
-            let mut raw = String::new();
-            let mut file = File::open(desc_path).unwrap();
-            file.read_to_string(&mut raw).unwrap();
-            parser::parse_descriptors(&raw)?
-        }
-        None => {
-            // Load descriptors from files relative to the consensus file
-            highlevel::lookup_descriptors(&consensus, cli.consensus)?
-        }
-    };
-
-    // println!("{:?}", descriptors);
-    let consensus = highlevel::Consensus::combine_documents(consensus, descriptors, &asn_db);
-    // println!("{:?}", consensus);
-
-    let mut consensus = consensus?;
-
-    if cli.remove_idle_relays {
-        let mut removed = 0;
-
-        consensus.remove_relays_by(|r| {
-            let remove = r.bw_observed_was_zero;
-            if remove {
-                removed += 1;
-            }
-            remove
-        });
-        println!("Removed {removed} relays that have an observed bandwidth of zero...")
+    match cli.command {
+        Command::Scale(_) => command_scale(cli),
     }
-
-    if cli.verify_weights {
-        println!("verifying bw weights...");
-        match consensus.verify_weights() {
-            Ok(_) => {
-                println!("bw weights match.");
-            }
-            Err(s) => {
-                println!("bw weights do not match:");
-                println!("{}", s);
-            }
-        }
-    }
-
-    if let Some(scale) = cli.horz {
-        scale_horizontally(
-            &mut consensus,
-            scale,
-            cli.horz_exit_factor,
-            cli.horz_guard_factor,
-            &asn_db,
-            cli.prob_family_new
-                .expect("--prob-family-new needs to be specified"),
-        );
-        consensus.print_stats();
-    }
-    if let Some(raw) = cli.scale_vert_by_bw_quantiles {
-        let scales: Vec<f32> = raw.split(',').map(|x| x.parse().unwrap()).collect();
-        scale_vertically_by_bandwidth_rank(&mut consensus, scales);
-        consensus.print_stats();
-    } else if cli.vert_middle_scale.is_some()
-        || cli.vert_exit_scale.is_some()
-        || cli.vert_guard_scale.is_some()
-    {
-        scale_flag_groups_vertically(
-            &mut consensus,
-            cli.vert_middle_scale.unwrap_or(1.0),
-            cli.vert_exit_scale.unwrap_or(1.0),
-            cli.vert_guard_scale.unwrap_or(1.0),
-        );
-        consensus.print_stats();
-    }
-
-    if let Some(output_dir) = cli.output_dir {
-        highlevel::output::save_to_dir(&consensus, &output_dir)?;
-    }
-
-    Ok(())
 }
