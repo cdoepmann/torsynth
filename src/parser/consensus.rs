@@ -27,6 +27,8 @@ pub enum Flag {
     Fast,
     Guard,
     HSDir,
+    Named,
+    Unnamed,
     NoEdConsensus,
     Running,
     Stable,
@@ -257,8 +259,13 @@ pub struct ShallowRelay {
     pub or_port: u16,
     pub dir_port: Option<u16>,
     pub flags: Vec<Flag>,
+    #[builder(default)]
     pub version_line: String,
+    #[builder(default)]
     pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    #[builder(
+        default = "CondensedExitPolicy { policy_type: PolicyType::Accept, entries: Vec::new() }"
+    )]
     pub exit_policy: CondensedExitPolicy,
     pub bandwidth_weight: u64,
 }

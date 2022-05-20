@@ -4,14 +4,21 @@ use highlevel::{
     scale_vertically_by_bandwidth_rank,
 };
 mod parser;
+use parser::consensus::ConsensusDocument;
 mod seeded_rand;
 
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::{Path, PathBuf};
 
 use highlevel::asn::AsnDb;
 
+use chrono::{offset::TimeZone, DateTime, Utc};
 use clap::{Args, Parser, Subcommand};
+use glob::glob;
+use indicatif;
+use rayon::prelude::*;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -28,6 +35,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Scale(ScaleArgs),
+    History(HistoryArgs),
 }
 
 #[derive(Args)]
@@ -192,6 +200,97 @@ fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[derive(Args)]
+struct HistoryArgs {
+    /// Folder structure containing historical consensuses
+    consensus_dir: String,
+}
+
+fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+    let cli_history = if let Command::History(x) = cli.command {
+        x
+    } else {
+        panic!("wrong command");
+    };
+
+    // Find the available consensuses
+    let glob_expr = Path::new(&cli_history.consensus_dir)
+        .join("consensuses-*-*/*/*-consensus")
+        .to_str()
+        .unwrap()
+        .to_owned();
+
+    let files = glob(&glob_expr)?
+        .filter_map(|x| match x {
+            Err(e) => {
+                eprintln!("[Warning] When searching for consensuses: {:?}", e);
+                None
+            }
+            Ok(x) => Some(x),
+        })
+        .collect::<Vec<_>>();
+
+    if files.len() == 0 {
+        panic!("no consensus files found");
+    }
+    let files: BTreeMap<DateTime<Utc>, PathBuf> = files
+        .into_par_iter()
+        .map(|f| {
+            let dt = Utc
+                .datetime_from_str(
+                    &f.file_name().unwrap().to_str().unwrap()[..19],
+                    "%Y-%m-%d-%H-%M-%S",
+                )
+                .unwrap();
+
+            (dt, f)
+        })
+        .collect();
+
+    // TODO filter
+    let thresh_date = Utc.ymd(2010, 7, 19).and_hms(0, 0, 0);
+
+    let pb = indicatif::ProgressBar::new(files.len() as u64);
+    // pb.inc(114200);
+    let cons: Result<Vec<Option<ConsensusDocument>>, parser::DocumentParseError> = files
+        .par_iter()
+        .map(
+            |(dt, fpath)| -> Result<Option<ConsensusDocument>, parser::DocumentParseError> {
+                //).skip(114200) {
+                pb.inc(1);
+
+                if dt < &thresh_date {
+                    return Ok(None);
+                }
+
+                // println!("{:?}", fpath);
+                let mut raw = String::new();
+                let mut file = File::open(&fpath).unwrap();
+                file.read_to_string(&mut raw).unwrap();
+                Ok(match parser::parse_consensus(&raw) {
+                    Err(parser::DocumentParseError::RelayIncomplete(
+                        parser::consensus::ShallowRelayBuilderError::UninitializedField(
+                            "bandwidth_weight",
+                        ),
+                    )) => {
+                        println!("ignoring (relabw) {:?}", fpath);
+                        None
+                    }
+                    // Err(parser::DocumentParseError::ConsensusWeightsMissing) => {
+                    //     println!("ignoring (consbw) {:?}", fpath);
+                    //     None
+                    // }
+                    x => Some(x?),
+                })
+            },
+        )
+        .collect();
+
+    // TODO aggregate etc.
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
@@ -208,5 +307,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Command::Scale(_) => command_scale(cli),
+        Command::History(_) => command_history(cli),
     }
 }
