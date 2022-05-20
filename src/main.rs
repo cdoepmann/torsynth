@@ -1,6 +1,7 @@
 mod highlevel;
 use highlevel::{
-    scale_flag_groups_vertically, scale_horizontally, scale_vertically_by_bandwidth_rank,
+    cutoff_lower_and_redistribute, scale_flag_groups_vertically, scale_horizontally,
+    scale_vertically_by_bandwidth_rank,
 };
 mod parser;
 mod seeded_rand;
@@ -65,6 +66,12 @@ struct ScaleArgs {
     /// Each of the N value then denotes the scale for the respective N-quantile.
     #[clap(long)]
     scale_vert_by_bw_quantiles: Option<String>,
+    /// When scaling vertically, remove the the lower share X of the relays and
+    /// give their bandwidth to the remaining, faster relays.
+    /// If this option is used, the given quantiles refer to the relays that
+    /// remain AFTER removing the specified share of slow relays.
+    #[clap(long, requires = "scale-vert-by-bw-quantiles")]
+    scale_vert_cutoff_lower: Option<f32>,
     /// Scale the bandwidth of each middle relay by this factor
     #[clap(long, conflicts_with = "scale-vert-by-bw-quantiles")]
     vert_middle_scale: Option<f32>,
@@ -156,6 +163,12 @@ fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         consensus.print_stats();
     }
     if let Some(raw) = cli_scale.scale_vert_by_bw_quantiles {
+        if let Some(cutoff) = cli_scale.scale_vert_cutoff_lower {
+            // consensus.print_stats();
+            cutoff_lower_and_redistribute(&mut consensus, cutoff);
+            // consensus.print_stats();
+        }
+
         let scales: Vec<f32> = raw.split(',').map(|x| x.parse().unwrap()).collect();
         scale_vertically_by_bandwidth_rank(&mut consensus, scales);
         consensus.print_stats();

@@ -1,6 +1,6 @@
 //! Algorithms for scaling Tor consensuses.
 
-use crate::highlevel::RHashMap;
+use crate::highlevel::{RHashMap, RHashSet};
 use std::rc::Rc;
 
 use rand::distributions::weighted::WeightedError;
@@ -554,25 +554,6 @@ impl NicknameGenerator {
     }
 }
 
-// - total scale
-//   - distribution by bandwidth weight (relative)
-//   - weigh by flag
-// - scale exits
-// - scale guards
-// - scale middle relays
-
-/*
-    --vertical-network-scale
-        --weigh-by-bandwidth
-        (--weigh-by-flag)
-CONFLICT WITH
-    --vertical-guard-scale
-    --vertical-exit-scale
-    --vertical-middle-scale
-*/
-
-// pub struct RelativeDistribution {}
-
 pub fn scale_vertically_by_bandwidth_rank(
     consensus: &mut Consensus,
     // bandwidth_distribution: Option<RelativeDistribution>,
@@ -621,6 +602,51 @@ pub fn scale_flag_groups_vertically(
 
     let relay_weights = |relay: &Relay| -> f32 { flag_weights.get_relay_weight(relay) };
     scale_vertically_by(consensus, relay_weights);
+}
+
+/// Remove the lower `cutoff` (e.g. 0.5) of (non-authority) relays and give
+/// their bandwidth to the remaining relays instead.
+///
+/// Panics if the cutoff value is not in the range of [0.0 ; 1.0].
+pub fn cutoff_lower_and_redistribute(consensus: &mut Consensus, cutoff: f32) {
+    if cutoff < 0.0 || cutoff > 1.0 {
+        panic!("cutoff value must be between 0.0 and 1.0");
+    }
+
+    // Get relays to remove. Use this approach instead of a bandwidth threshold
+    // to make sure we do not remove too many relays if multiple relays have the
+    // exact same threshold bandwidth.
+    let relays_to_remove: RHashSet<Fingerprint> = {
+        let mut relays: Vec<(&Fingerprint, &Relay)> = consensus
+            .relays
+            .iter()
+            .filter(|(_, r)| !r.has_flag(Flag::Authority))
+            .collect();
+        relays.sort_unstable_by_key(|(_, r)| r.bandwidth_weight);
+        let num_cutoff_relays = (relays.len() as f32 * cutoff) as usize;
+        relays
+            .into_iter()
+            .take(num_cutoff_relays)
+            .map(|(fp, _)| fp.clone())
+            .collect()
+    };
+
+    // remove the relays and collect their bandwidth
+    let mut removed_bandwidth = 0u64;
+    let remove_condition = |r: &Relay| -> bool {
+        if relays_to_remove.contains(&r.fingerprint) {
+            removed_bandwidth += r.bandwidth_weight;
+            true
+        } else {
+            false
+        }
+    };
+    consensus.remove_relays_by(remove_condition);
+
+    // Give the removed bandwidth to the remaining relays.
+    let remaining_bandwidth: u64 = consensus.relays.values().map(|r| r.bandwidth_weight).sum();
+    let grow_factor = 1.0 + (removed_bandwidth as f32 / remaining_bandwidth as f32);
+    scale_vertically_by_bandwidth_rank(consensus, vec![grow_factor]);
 }
 
 /// Scale a consensus given a function that defines each relay's scale factor

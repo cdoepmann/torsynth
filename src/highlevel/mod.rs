@@ -7,7 +7,8 @@ mod families;
 
 mod scale;
 pub use scale::{
-    scale_flag_groups_vertically, scale_horizontally, scale_vertically_by_bandwidth_rank,
+    cutoff_lower_and_redistribute, scale_flag_groups_vertically, scale_horizontally,
+    scale_vertically_by_bandwidth_rank,
 };
 
 pub mod asn;
