@@ -441,16 +441,19 @@ impl ConsensusDocument {
         }
 
         // collect weights
+        // default to an empty Vec, as the bandwidth weights are actually optional
         let weights = {
-            let item = doc
+            let args = match doc
                 .items
                 .iter()
                 .skip_while(|&x| x.keyword != "bandwidth-weights")
                 .next()
-                .ok_or(DocumentParseError::ConsensusWeightsMissing)?;
+            {
+                Some(item) => item.split_arguments()?,
+                None => Vec::new(),
+            };
             let mut weights = BTreeMap::new();
 
-            let args = item.split_arguments()?;
             for arg in args.iter() {
                 let (k, v) = arg
                     .split_once('=')

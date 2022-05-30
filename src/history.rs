@@ -84,6 +84,7 @@ pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error>
         let mut raw = String::new();
         let mut file = File::open(&fpath).unwrap();
         file.read_to_string(&mut raw).unwrap();
+        // dbg!(fpath);
         let cons = parser::parse_consensus(&raw)?;
 
         // create CSV record
