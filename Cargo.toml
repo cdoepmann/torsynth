@@ -25,4 +25,5 @@ lazy_static = "1.4.0"
 itertools = "0.10.3"
 twox-hash = "1.6.2"
 glob = "0.3.0"
+serde = { version = "1.0", features = ["derive"] }
 indicatif = "0.16.2"
