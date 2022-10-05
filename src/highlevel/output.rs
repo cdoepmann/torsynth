@@ -9,6 +9,8 @@ use std::io::prelude::*;
 use std::path::Path;
 
 use chrono::Duration;
+use serde::Serialize;
+use serde_json;
 use thiserror;
 
 use super::Consensus;
@@ -27,6 +29,44 @@ pub enum OutputError {
     IoError(#[from] io::Error),
     #[error("Formatting error")]
     FmtError(#[from] fmt::Error),
+    #[error("JSON serialization error")]
+    JsonError(#[from] serde_json::Error),
+}
+
+#[derive(Serialize)]
+struct JsonConsensus {
+    relays: Vec<JsonRelay>,
+}
+
+#[derive(Serialize)]
+struct JsonRelay {
+    nickname: String,
+    fingerprint: String,
+    weight: u64,
+    is_guard: bool,
+    is_exit: bool,
+    asn: u32,
+}
+
+fn save_consensus_json<P: AsRef<Path>>(consensus: &Consensus, fpath: P) -> Result<(), OutputError> {
+    let relays: Vec<JsonRelay> = consensus
+        .relays
+        .iter()
+        .map(|(fp, r)| JsonRelay {
+            fingerprint: fp.to_string_hex(),
+            nickname: r.nickname.clone(),
+            weight: r.bandwidth_weight,
+            is_guard: r.has_flag(Flag::Guard),
+            is_exit: r.has_flag(Flag::Exit),
+            asn: r.asn.as_ref().map(|x| x.number).unwrap_or(0),
+        })
+        .collect();
+    let result = JsonConsensus { relays };
+
+    let mut f = File::create(fpath.as_ref())?;
+    write!(&mut f, "{}", serde_json::to_string_pretty(&result)?)?;
+
+    Ok(())
 }
 
 pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), OutputError> {
@@ -195,6 +235,9 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
             .collect::<Vec<_>>()
             .join(" ")
     )?;
+
+    // save consensus JSON
+    save_consensus_json(consensus, consensus_dir_path.join("consensus.json"))?;
 
     Ok(())
 }

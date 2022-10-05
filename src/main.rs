@@ -45,6 +45,7 @@ struct ScaleArgs {
     /// Verify that the bandwidth weights are correct
     #[clap(long)]
     verify_weights: bool,
+    /// Directory to save the generated consensus to.
     #[clap(long, short)]
     output_dir: Option<String>,
     /// Scale the consensus horizontally by this factor
