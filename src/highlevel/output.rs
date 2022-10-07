@@ -215,7 +215,7 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
                 .protocols
                 .iter()
                 .map(|(protocol, version)| {
-                    format!("{} {}", <&'static str>::from(protocol), version.to_string())
+                    format!("{}={}", <&'static str>::from(protocol), version.to_string())
                 })
                 .collect::<Vec<_>>()
                 .join(" ")
