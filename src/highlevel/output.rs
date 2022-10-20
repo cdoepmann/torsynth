@@ -166,6 +166,11 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
                         .join(" "),
                 )?;
             }
+
+            for line in relay.exit_policy.to_descriptor_lines() {
+                writeln!(&mut desc, "{}", line)?;
+            }
+
             writeln!(&mut desc, "router-signature")?;
             writeln!(&mut desc, "-----BEGIN SIGNATURE-----")?;
             writeln!(&mut desc, "AAAA")?;

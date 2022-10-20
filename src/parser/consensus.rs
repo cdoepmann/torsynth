@@ -153,6 +153,13 @@ impl PolicyEntry {
             PolicyEntry::PortRange { min, max } => port >= *min && port <= *max,
         }
     }
+
+    fn to_ports(&self) -> Vec<u16> {
+        match *self {
+            PolicyEntry::SinglePort(x) => vec![x],
+            PolicyEntry::PortRange { min, max } => (min..=max).collect(),
+        }
+    }
 }
 
 impl FromStr for PolicyEntry {
@@ -192,6 +199,28 @@ impl fmt::Display for PolicyEntry {
 pub struct CondensedExitPolicy {
     policy_type: PolicyType,
     entries: Vec<PolicyEntry>,
+}
+
+impl CondensedExitPolicy {
+    pub fn to_descriptor_lines(&self) -> Vec<String> {
+        match self.policy_type {
+            PolicyType::Reject => {
+                vec!["reject *:*".to_string()]
+            }
+            PolicyType::Accept => {
+                let mut lines = Vec::new();
+
+                for entry in self.entries.iter() {
+                    for port in entry.to_ports() {
+                        lines.push(format!("accept *:{}", port));
+                    }
+                }
+                lines.push("reject *:*".to_string());
+
+                lines
+            }
+        }
+    }
 }
 
 impl FromStr for CondensedExitPolicy {
