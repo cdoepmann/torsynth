@@ -14,7 +14,7 @@ use crate::seeded_rand::get_rng;
 use csv;
 use rand;
 use thiserror;
-use treebitmap::IpLookupTable;
+use ip_network_table_deps_treebitmap::IpLookupTable;
 
 #[derive(thiserror::Error, Debug)]
 pub enum AsnDbError {
