@@ -1,6 +1,5 @@
 //! Algorithms for scaling Tor consensuses.
 
-use crate::highlevel::{RHashMap, RHashSet};
 use std::rc::Rc;
 
 use rand::distributions::weighted::WeightedError;
@@ -12,7 +11,8 @@ use super::families::{self, Family};
 use super::{Consensus, Relay};
 use crate::parser::consensus::Flag;
 use crate::parser::Fingerprint;
-use crate::seeded_rand::get_rng;
+
+use seeded_rand::{get_rng, RHashMap, RHashSet};
 
 pub fn scale_horizontally(
     consensus: &mut Consensus,

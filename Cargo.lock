@@ -311,9 +311,9 @@ dependencies = [
 
 [[package]]
 name = "digest"
-version = "0.10.5"
+version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adfbc57365a37acbd2ebf2b64d7e69bb766e2fea813521ed536f5d0520dcf86c"
+checksum = "8168378f4e5023e7218c89c891c0fd8ecdb5e5e4f18cb78f38cf245dd021e76f"
 dependencies = [
  "block-buffer",
  "crypto-common",
@@ -702,6 +702,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c8132065adcfd6e02db789d9285a0deb2f3fcb04002865ab67d5fb103533898"
 
 [[package]]
+name = "seeded_rand"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "rand",
+ "rand_chacha",
+ "sha1",
+ "twox-hash",
+]
+
+[[package]]
 name = "serde"
 version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -851,19 +862,17 @@ dependencies = [
  "derive_builder",
  "ip_network_table-deps-treebitmap",
  "itertools",
- "lazy_static",
  "nom",
  "phf",
  "rand",
- "rand_chacha",
  "regex",
+ "seeded_rand",
  "serde",
  "serde_json",
  "sha1",
  "strum",
  "strum_macros",
  "thiserror",
- "twox-hash",
 ]
 
 [[package]]
@@ -879,9 +888,9 @@ dependencies = [
 
 [[package]]
 name = "typenum"
-version = "1.15.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcf81ac59edc17cc8697ff311e8f5ef2d99fcbd9817b34cec66f90b6c3dfd987"
+checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
 
 [[package]]
 name = "unicode-ident"

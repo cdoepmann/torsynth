@@ -1,7 +1,6 @@
 //! Helpers to work with parsed Tor data on a high level.
 
 // std
-use crate::highlevel::{RHashMap, RHashSet};
 use std::collections::hash_map::Entry;
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -28,6 +27,8 @@ use crate::parser::consensus::{
 use crate::parser::descriptor::{Descriptor, FamilyMember};
 use crate::parser::DocumentCombiningError;
 use crate::parser::Fingerprint;
+
+use seeded_rand::{RHashMap, RHashSet};
 
 /// A container for the result of merging a consensus document and the
 /// respective relay server descriptors.

@@ -4,7 +4,6 @@ use highlevel::{
     scale_vertically_by_bandwidth_rank,
 };
 mod parser;
-mod seeded_rand;
 
 use std::fs::File;
 use std::io::prelude::*;
