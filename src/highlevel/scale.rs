@@ -9,10 +9,9 @@ use rand::Rng;
 use super::asn::{Asn, AsnDb};
 use super::families::{self, Family};
 use super::{Consensus, Relay};
-use crate::parser::consensus::Flag;
-use crate::parser::Fingerprint;
 
 use seeded_rand::{get_rng, RHashMap, RHashSet};
+use tordoc::{consensus::Flag, Fingerprint};
 
 pub fn scale_horizontally(
     consensus: &mut Consensus,

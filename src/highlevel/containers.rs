@@ -19,14 +19,21 @@ use super::asn::{Asn, AsnDb};
 use super::bwweights;
 use super::families;
 use super::families::Family;
-use crate::parser;
-use crate::parser::consensus::ConsensusDocument;
-use crate::parser::consensus::{
-    CondensedExitPolicy, Flag, Protocol, ShallowRelay, SupportedProtocolVersion,
+// use crate::parser;
+// use crate::parser::consensus::ConsensusDocument;
+// use crate::parser::consensus::{
+//     CondensedExitPolicy, Flag, Protocol, ShallowRelay, SupportedProtocolVersion,
+// };
+// use crate::parser::descriptor::{Descriptor, FamilyMember};
+// use crate::parser::DocumentCombiningError;
+// use crate::parser::Fingerprint;
+
+use tordoc::consensus::{
+    CondensedExitPolicy, Flag, Protocol, Relay as ShallowRelay, SupportedProtocolVersion,
 };
-use crate::parser::descriptor::{Descriptor, FamilyMember};
-use crate::parser::DocumentCombiningError;
-use crate::parser::Fingerprint;
+use tordoc::descriptor::FamilyMember;
+use tordoc::error::DocumentCombiningError;
+use tordoc::{Consensus as ConsensusDocument, Descriptor, Fingerprint};
 
 use seeded_rand::{RHashMap, RHashSet};
 
@@ -438,7 +445,7 @@ pub fn lookup_descriptors<P: AsRef<Path>>(
         let mut raw = String::new();
         let mut file = File::open(desc_path).unwrap();
         file.read_to_string(&mut raw).unwrap();
-        descriptors.append(&mut parser::parse_descriptors(&raw)?);
+        descriptors.append(&mut Descriptor::many_from_str(&raw)?);
     }
 
     Ok(descriptors)

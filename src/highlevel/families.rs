@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use super::Relay;
-use crate::parser::Fingerprint;
 use seeded_rand::{RHashMap, RHashSet};
+use tordoc::Fingerprint;
 
 #[derive(Debug)]
 pub struct Family {

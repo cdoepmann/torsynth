@@ -2,7 +2,8 @@ use std::cmp::{max, min};
 use std::collections::BTreeMap;
 
 use crate::highlevel::Consensus;
-use crate::parser::consensus::Flag;
+
+use tordoc::consensus::Flag;
 
 #[allow(non_snake_case)]
 pub fn recompute_bw_weights(consensus: &mut Consensus) {
