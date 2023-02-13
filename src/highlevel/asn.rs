@@ -1,6 +1,5 @@
 //! Handling of IP -> AS lookup as well as sampling from AS IP ranges.
 
-use crate::highlevel::RHashMap;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::fs::File;
@@ -9,12 +8,12 @@ use std::num::ParseIntError;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::seeded_rand::get_rng;
+use seeded_rand::{get_rng, RHashMap};
 
 use csv;
+use ip_network_table_deps_treebitmap::IpLookupTable;
 use rand;
 use thiserror;
-use treebitmap::IpLookupTable;
 
 #[derive(thiserror::Error, Debug)]
 pub enum AsnDbError {
@@ -223,7 +222,7 @@ mod tests {
 
     #[test]
     fn generate_unknown_ip() {
-        crate::seeded_rand::set_seed(42);
+        seeded_rand::set_seed(42);
 
         let asn_db = AsnDb::new("GeoLite2-ASN-Blocks-IPv4.csv").unwrap();
         let ip = asn_db.sample_unknown_ip();

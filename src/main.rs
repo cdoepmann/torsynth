@@ -4,7 +4,6 @@ use highlevel::{
     scale_vertically_by_bandwidth_rank,
 };
 mod parser;
-mod seeded_rand;
 
 mod history;
 
@@ -48,6 +47,7 @@ struct ScaleArgs {
     /// Verify that the bandwidth weights are correct
     #[clap(long)]
     verify_weights: bool,
+    /// Directory to save the generated consensus to.
     #[clap(long, short)]
     output_dir: Option<String>,
     /// Scale the consensus horizontally by this factor

@@ -16,14 +16,12 @@ strum = { version = "0.24", features = ["derive"] }
 strum_macros = "0.24"
 base64 = "0.13.0"
 sha1 = "0.10.1"
-treebitmap = "0.4.0"
+ip_network_table-deps-treebitmap = "0.5.0"
 csv = "1.1"
 rand = "0.8.5"
-rand_chacha = "0.3.1"
 regex = "1.5"
-lazy_static = "1.4.0"
 itertools = "0.10.3"
-twox-hash = "1.6.2"
-glob = "0.3.0"
+serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-indicatif = "0.16.2"
+seeded_rand = {path = "../seeded_rand"}
+glob = "0.3.0"

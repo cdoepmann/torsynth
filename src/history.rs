@@ -11,7 +11,6 @@ use chrono::{offset::TimeZone, DateTime, Utc};
 use clap::Args;
 use csv;
 use glob::glob;
-use indicatif::ProgressIterator;
 use serde::Serialize;
 
 #[derive(Args)]
@@ -80,7 +79,7 @@ pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error>
     // let pb = indicatif::ProgressBar::new(files.len() as u64);
 
     // parse and save the consensuses
-    for (dt, fpath) in files.into_iter().progress() {
+    for (dt, fpath) in files {
         let mut raw = String::new();
         let mut file = File::open(&fpath).unwrap();
         file.read_to_string(&mut raw).unwrap();

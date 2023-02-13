@@ -1,9 +1,9 @@
-use crate::highlevel::{RHashMap, RHashSet};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use super::Relay;
 use crate::parser::Fingerprint;
+use seeded_rand::{RHashMap, RHashSet};
 
 #[derive(Debug)]
 pub struct Family {
