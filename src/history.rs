@@ -1,6 +1,6 @@
-use super::parser;
 use super::{Cli, Command};
-use parser::consensus::ConsensusDocument;
+
+use tordoc::Consensus;
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -84,7 +84,7 @@ pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error>
         let mut file = File::open(&fpath).unwrap();
         file.read_to_string(&mut raw).unwrap();
         // dbg!(fpath);
-        let cons = parser::parse_consensus(&raw)?;
+        let cons = Consensus::from_str(&raw)?;
 
         // create CSV record
         let record = CsvRecord {

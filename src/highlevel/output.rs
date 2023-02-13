@@ -14,8 +14,9 @@ use serde_json;
 use thiserror;
 
 use super::Consensus;
-use crate::parser::consensus::Flag;
-use crate::parser::descriptor::Descriptor;
+
+use sha1::{Digest, Sha1};
+use tordoc::{consensus::Flag, Descriptor, Fingerprint};
 
 #[derive(thiserror::Error, Debug)]
 pub enum OutputError {
@@ -181,7 +182,7 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
             let to = "\nrouter-signature\n";
             let from_idx = desc.find(from).unwrap();
             let to_idx = desc.find(to).unwrap() + to.len();
-            Descriptor::digest_from_raw(&desc[from_idx..to_idx])
+            digest_from_raw(&desc[from_idx..to_idx])
         };
         fs::write(
             descriptors_dir_path.join(desc_digest.to_string_hex()),
@@ -245,4 +246,13 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
     save_consensus_json(consensus, consensus_dir_path.join("consensus.json"))?;
 
     Ok(())
+}
+
+/// Compute the digest given the extracted raw content
+pub fn digest_from_raw<R: AsRef<[u8]>>(raw: R) -> Fingerprint {
+    let raw = raw.as_ref();
+    let mut hasher = Sha1::new();
+    hasher.update(raw);
+    let result = hasher.finalize();
+    Fingerprint::from_u8(&result)
 }

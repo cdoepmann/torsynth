@@ -3,7 +3,7 @@ use highlevel::{
     cutoff_lower_and_redistribute, scale_flag_groups_vertically, scale_horizontally,
     scale_vertically_by_bandwidth_rank,
 };
-mod parser;
+// mod parser;
 
 mod history;
 
@@ -13,6 +13,7 @@ use std::io::prelude::*;
 use highlevel::asn::AsnDb;
 
 use clap::{Args, Parser, Subcommand};
+use tordoc;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -103,7 +104,7 @@ fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         let mut raw = String::new();
         let mut file = File::open(&cli_scale.consensus).unwrap();
         file.read_to_string(&mut raw).unwrap();
-        parser::parse_consensus(&raw)?
+        tordoc::Consensus::from_str(&raw)?
     };
 
     let descriptors = match cli_scale.descriptors {
@@ -112,7 +113,7 @@ fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let mut raw = String::new();
             let mut file = File::open(desc_path).unwrap();
             file.read_to_string(&mut raw).unwrap();
-            parser::parse_descriptors(&raw)?
+            tordoc::Descriptor::many_from_str(&raw)?
         }
         None => {
             // Load descriptors from files relative to the consensus file
