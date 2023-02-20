@@ -63,8 +63,8 @@ pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error 
                 .unwrap();
 
             // only retain a period of 10 years
-            if (dt >= Utc.ymd(2012, 5, 1).and_hms(0, 0, 0))
-                && (dt < Utc.ymd(2022, 5, 1).and_hms(0, 0, 0))
+            if (dt >= Utc.ymd(2013, 2, 1).and_hms(0, 0, 0))
+                && (dt < Utc.ymd(2023, 2, 1).and_hms(0, 0, 0))
             {
                 Some((dt, f))
             } else {
