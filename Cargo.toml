@@ -2,6 +2,7 @@
 name = "torscaler"
 version = "0.1.0"
 edition = "2021"
+default-run = "torscaler"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -26,3 +27,4 @@ serde = { version = "1.0", features = ["derive"] }
 seeded_rand = {path = "../seeded_rand"}
 tordoc = {path = "../tordoc"}
 glob = "0.3.0"
+anyhow = "1.0"

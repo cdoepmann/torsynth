@@ -177,7 +177,7 @@ impl Consensus {
         for relay in consensus.relays {
             let descriptor = descriptors.remove(&relay.digest).ok_or_else(|| {
                 DocumentCombiningError::MissingDescriptor {
-                    digest: relay.digest.clone(),
+                    digest: relay.digest.to_string_hex(),
                 }
             })?;
 
@@ -380,7 +380,7 @@ fn family_sizes(family_objects: &Vec<Rc<Family>>) -> Vec<(usize, usize)> {
 pub fn lookup_descriptors<P: AsRef<Path>>(
     consensus: &ConsensusDocument,
     consensus_path: P,
-) -> Result<Vec<Descriptor>, Box<dyn std::error::Error>> {
+) -> Result<Vec<Descriptor>, Box<dyn std::error::Error + Sync + Send>> {
     let consensus_path = consensus_path.as_ref();
     // get year and month
     let fname_regex = Regex::new(r"^(\d{4})-(\d{2})-(\d{2})-").unwrap();
@@ -438,14 +438,27 @@ pub fn lookup_descriptors<P: AsRef<Path>>(
             previous_path
         } else {
             return Err(Box::new(DocumentCombiningError::MissingDescriptor {
-                digest: relay.digest.clone(),
+                digest: relay.digest.to_string_hex(),
             }));
         };
 
-        let mut raw = String::new();
-        let mut file = File::open(desc_path).unwrap();
-        file.read_to_string(&mut raw).unwrap();
-        descriptors.append(&mut Descriptor::many_from_str(&raw)?);
+        let descriptor = {
+            use std::str;
+
+            let mut raw = Vec::new();
+            let mut file = File::open(desc_path).unwrap();
+            file.read_to_end(&mut raw).unwrap();
+
+            match str::from_utf8(&raw) {
+                Ok(text) => Descriptor::from_str(text)?,
+                Err(_) => {
+                    // invalid UTF-8
+                    Descriptor::from_bytes_lossy(&raw)?
+                }
+            }
+        };
+
+        descriptors.push(descriptor);
     }
 
     Ok(descriptors)

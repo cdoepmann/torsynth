@@ -22,7 +22,7 @@ pub(crate) struct HistoryArgs {
     csv_out: String,
 }
 
-pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     let cli_history = if let Command::History(x) = cli.command {
         x
     } else {
