@@ -9,8 +9,11 @@ use std::io::prelude::*;
 use torscaler::highlevel::{self, asn::AsnDb, Consensus};
 
 use anyhow;
-use clap::{Args, Parser, Subcommand};
+use anyhow::Context;
+use clap::Parser;
+use csv;
 use seeded_rand;
+use serde::Serialize;
 use tordoc;
 
 #[derive(Parser)]
@@ -29,6 +32,9 @@ struct Cli {
     /// AS IP ranges database CSV file
     #[clap(long)]
     asn_db: String,
+    /// Output CSV file of the resulting consensuses
+    #[clap(long, short)]
+    output: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -48,28 +54,38 @@ fn main() -> anyhow::Result<()> {
     // load AS database
     let asn_db = AsnDb::new(&cli.asn_db)?;
 
-    let mut first_consensus = load_consensus(&cli.first_consensus, &asn_db)?;
-    let second_consensus = load_consensus(&cli.second_consensus, &asn_db)?;
+    let mut first_consensus =
+        load_consensus(&cli.first_consensus, &asn_db).context(cli.first_consensus.to_string())?;
+    let second_consensus =
+        load_consensus(&cli.second_consensus, &asn_db).context(cli.second_consensus.to_string())?;
 
     let growth_h = second_consensus.relays.len() as f64 / first_consensus.relays.len() as f64;
-    let growth_v = second_consensus
+    let growth_v = (second_consensus
         .relays
         .values()
         .map(|r| r.bandwidth_weight)
         .sum::<u64>() as f64
-        / first_consensus
+        / second_consensus.relays.len() as f64)
+        / (first_consensus
             .relays
             .values()
             .map(|r| r.bandwidth_weight)
-            .sum::<u64>() as f64;
+            .sum::<u64>() as f64
+            / first_consensus.relays.len() as f64);
 
     dbg!(growth_h);
     dbg!(growth_v);
+
+    // // avoid double scaling
+    // let growth_v = growth_v / growth_h;
 
     assert!(growth_h >= 1.0);
     assert!(growth_v >= 1.0);
 
     // Scale the first consensus accordingly
+
+    println!("Scaling the consensus vertically by factor {}...", growth_v);
+    highlevel::scale_vertically_by_bandwidth_rank(&mut first_consensus, vec![growth_v as f32]);
     println!(
         "Scaling the consensus horizontally by factor {}...",
         growth_h
@@ -83,13 +99,48 @@ fn main() -> anyhow::Result<()> {
         0.5, // TODO P_new_family
     );
 
-    println!("Scaling the consensus vertically by factor {}...", growth_v);
-    highlevel::scale_vertically_by_bandwidth_rank(&mut first_consensus, vec![growth_v as f32]);
-
     // first_consensus is now scaled and ready for comparison with second_consensus
 
     assert_eq!(first_consensus.relays.len(), second_consensus.relays.len());
 
+    if let Some(out_file) = cli.output {
+        println!("Saving result to file...");
+
+        let mut wtr = csv::Writer::from_path(&out_file)?;
+
+        let original = {
+            let mut x: Vec<_> = second_consensus
+                .relays
+                .iter()
+                .map(|(_fp, r)| r.bandwidth_weight)
+                .collect();
+            x.sort_unstable();
+            x
+        };
+
+        let scaled = {
+            let mut x: Vec<_> = first_consensus
+                .relays
+                .iter()
+                .map(|(_fp, r)| r.bandwidth_weight)
+                .collect();
+            x.sort_unstable();
+            x
+        };
+
+        for (val_original, val_scaled) in std::iter::zip(original, scaled) {
+            wtr.serialize(CsvRecord {
+                scaled: val_scaled,
+                real: val_original,
+            })?;
+        }
+
+        drop(wtr);
+    } else {
+        println!("No output file given, thus not saving the results.");
+    }
+
+    println!("Done.");
     Ok(())
 }
 
@@ -117,8 +168,14 @@ fn load_consensus(path: &str, asn_db: &AsnDb) -> anyhow::Result<Consensus> {
         highlevel::lookup_descriptors(&consensus, path).map_err(|e| anyhow::anyhow!(e))?;
 
     // println!("{:?}", descriptors);
-    let consensus = highlevel::Consensus::combine_documents(consensus, descriptors, &asn_db);
+    let consensus = highlevel::Consensus::combine_documents(consensus, descriptors, &asn_db)?;
     // println!("{:?}", consensus);
 
-    Ok(consensus?)
+    Ok(consensus)
+}
+
+#[derive(Serialize)]
+struct CsvRecord {
+    real: u64,
+    scaled: u64,
 }

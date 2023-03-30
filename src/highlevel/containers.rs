@@ -10,6 +10,8 @@ use std::path::Path;
 use std::rc::Rc;
 
 // external dependencies
+use anyhow;
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use itertools;
 use regex::Regex;
@@ -66,8 +68,8 @@ pub struct Relay {
     pub or_port: u16,
     pub dir_port: Option<u16>,
     pub flags: Vec<Flag>,
-    pub version_line: String,
-    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    // pub version_line: String,
+    // pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
     pub exit_policy: CondensedExitPolicy,
     pub bandwidth_weight: u64,
     // from descriptor
@@ -96,8 +98,8 @@ impl Relay {
             or_port: cons_relay.or_port,
             dir_port: cons_relay.dir_port,
             flags: cons_relay.flags,
-            version_line: cons_relay.version_line,
-            protocols: cons_relay.protocols,
+            // version_line: cons_relay.version_line,
+            // protocols: cons_relay.protocols,
             exit_policy: cons_relay.exit_policy,
             bandwidth_weight: cons_relay.bandwidth_weight,
             // from descriptor
@@ -234,7 +236,8 @@ impl Consensus {
 
         let res = Consensus {
             valid_after: consensus.valid_after,
-            weights: consensus.weights,
+            // weights: consensus.weights,
+            weights: BTreeMap::new(),
             relays: relays,
             families: family_objects,
             prob_family,
@@ -380,7 +383,7 @@ fn family_sizes(family_objects: &Vec<Rc<Family>>) -> Vec<(usize, usize)> {
 pub fn lookup_descriptors<P: AsRef<Path>>(
     consensus: &ConsensusDocument,
     consensus_path: P,
-) -> Result<Vec<Descriptor>, Box<dyn std::error::Error + Sync + Send>> {
+) -> anyhow::Result<Vec<Descriptor>> {
     let consensus_path = consensus_path.as_ref();
     // get year and month
     let fname_regex = Regex::new(r"^(\d{4})-(\d{2})-(\d{2})-").unwrap();
@@ -411,7 +414,10 @@ pub fn lookup_descriptors<P: AsRef<Path>>(
             this_year, this_month
         ));
     if !current_desc.exists() {
-        return Err(Box::new(DocumentCombiningError::InvalidFolderStructure));
+        return Err(
+            anyhow::anyhow!(DocumentCombiningError::InvalidFolderStructure)
+                .context(format!("looking up {}", current_desc.display())),
+        );
     }
     let previous_desc = consensus_path
         .parent()
@@ -437,20 +443,28 @@ pub fn lookup_descriptors<P: AsRef<Path>>(
         } else if previous_path.exists() {
             previous_path
         } else {
-            return Err(Box::new(DocumentCombiningError::MissingDescriptor {
+            return Err(anyhow::anyhow!(DocumentCombiningError::MissingDescriptor {
                 digest: relay.digest.to_string_hex(),
-            }));
+            })
+            .context(format!(
+                "looking up {} or {}",
+                current_desc.display(),
+                previous_desc.display()
+            )));
         };
 
         let descriptor = {
             use std::str;
 
             let mut raw = Vec::new();
-            let mut file = File::open(desc_path).unwrap();
+            let mut file = File::open(&desc_path).unwrap();
             file.read_to_end(&mut raw).unwrap();
 
             match str::from_utf8(&raw) {
-                Ok(text) => Descriptor::from_str(text)?,
+                Ok(text) => Descriptor::from_str(text).context(format!(
+                    "parsing descriptor {}",
+                    desc_path.canonicalize().unwrap().display()
+                ))?,
                 Err(_) => {
                     // invalid UTF-8
                     Descriptor::from_bytes_lossy(&raw)?

@@ -79,11 +79,13 @@ pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error 
     // let pb = indicatif::ProgressBar::new(files.len() as u64);
 
     // parse and save the consensuses
-    for (dt, fpath) in files {
+    for (i, (_dt, fpath)) in files.into_iter().enumerate() {
+        if i % 24 == 0 {
+            println!("{:7}: {}", i, fpath.display());
+        }
         let mut raw = String::new();
         let mut file = File::open(&fpath).unwrap();
         file.read_to_string(&mut raw).unwrap();
-        // dbg!(fpath);
         let cons = Consensus::from_str(&raw)?;
 
         // create CSV record
