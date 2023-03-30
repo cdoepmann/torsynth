@@ -16,7 +16,7 @@ use thiserror;
 use super::Consensus;
 
 use sha1::{Digest, Sha1};
-use tordoc::{consensus::Flag, Descriptor, Fingerprint};
+use tordoc::{consensus::Flag, Fingerprint};
 
 #[derive(thiserror::Error, Debug)]
 pub enum OutputError {

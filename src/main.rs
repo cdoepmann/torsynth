@@ -97,11 +97,12 @@ fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     let asn_db = AsnDb::new(&cli_scale.asn_db)?;
 
-    let consensus = {
+    let consensus: highlevel::UnpackedConsensus = {
         let mut raw = String::new();
         let mut file = File::open(&cli_scale.consensus).unwrap();
         file.read_to_string(&mut raw).unwrap();
-        tordoc::Consensus::from_str(&raw)?
+        let raw_consensus = tordoc::Consensus::from_str(&raw)?;
+        raw_consensus.try_into()?
     };
 
     let descriptors = match cli_scale.descriptors {

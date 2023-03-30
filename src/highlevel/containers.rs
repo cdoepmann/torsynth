@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 // external dependencies
 use chrono::{DateTime, Utc};
+use fromsuper::FromSuper;
 use itertools;
 use regex::Regex;
 
@@ -53,6 +54,64 @@ pub struct Consensus {
     pub family_sizes: Vec<(usize, usize)>,
 }
 
+/// Unpacked relay data from tordoc's Relay struct
+#[derive(Debug, Clone, FromSuper)]
+#[fromsuper(from_type = "ShallowRelay", unpack = true)]
+struct UnpackedRelay {
+    pub nickname: String,
+    pub fingerprint: Fingerprint,
+    pub digest: Fingerprint,
+    pub published: DateTime<Utc>,
+    pub address: Ipv4Addr,
+    pub or_port: u16,
+    #[fromsuper(unpack = false)]
+    pub dir_port: Option<u16>,
+    pub flags: Vec<Flag>,
+    pub version_line: String,
+    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    pub exit_policy: CondensedExitPolicy,
+    pub bandwidth_weight: u64,
+}
+
+/// Unpacked consensus from tordoc's Consensus struct
+#[derive(Debug, Clone)]
+pub struct UnpackedConsensus {
+    valid_after: DateTime<Utc>,
+    relays: Vec<UnpackedRelay>,
+    weights: BTreeMap<String, u64>,
+}
+
+impl TryFrom<ConsensusDocument> for UnpackedConsensus {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: ConsensusDocument) -> Result<Self, Self::Error> {
+        Ok(UnpackedConsensus {
+            valid_after: value
+                .valid_after
+                .ok_or_else(|| DocumentCombiningError::incomplete_relay("valid_after"))?,
+            relays: value
+                .relays
+                .into_iter()
+                .map(UnpackedRelay::try_from)
+                .collect::<Result<Vec<_>, _>>()?,
+            weights: value
+                .weights
+                .ok_or_else(|| DocumentCombiningError::incomplete_relay("weights"))?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, FromSuper)]
+#[fromsuper(from_type = "tordoc::Descriptor", unpack = true)]
+struct UnpackedDescriptor {
+    pub fingerprint: Fingerprint,
+    pub digest: Fingerprint,
+    pub family_members: Vec<FamilyMember>,
+    pub bandwidth_avg: u64,
+    pub bandwidth_burst: u64,
+    pub bandwidth_observed: u64,
+}
+
 /// A relay contained in the consensus
 #[derive(Debug, Clone)]
 pub struct Relay {
@@ -81,10 +140,19 @@ pub struct Relay {
 impl Relay {
     // TODO name
     fn from_consensus_entry_and_descriptor(
-        cons_relay: ShallowRelay,
-        descriptor: Descriptor,
+        cons_relay: UnpackedRelay,
+        descriptor: UnpackedDescriptor,
         asn_db: &AsnDb,
     ) -> Relay {
+        // /// Helper macro to extract original consensus data
+        // macro_rules! from_consensus {
+        //     ($field:ident) => {
+        //         cons_relay
+        //             .$field
+        //             .ok_or_else(|| DocumentCombiningError::incomplete_relay(stringify!($field)))?
+        //     };
+        // }
+
         Relay {
             // from consensus
             nickname: cons_relay.nickname,
@@ -119,12 +187,18 @@ impl Consensus {
     /// Construct a high-level consensus object from the lower-level parsed
     /// consensus and descriptors
     pub fn combine_documents(
-        consensus: ConsensusDocument,
+        consensus: UnpackedConsensus,
         descriptors: Vec<Descriptor>,
         asn_db: &AsnDb,
-    ) -> Result<Consensus, DocumentCombiningError> {
+    ) -> Result<Consensus, Box<dyn std::error::Error>> {
+        // unpack descriptors
+        let descriptors: Vec<UnpackedDescriptor> = descriptors
+            .into_iter()
+            .map(UnpackedDescriptor::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
         // index descriptors by digest
-        let mut descriptors: RHashMap<Fingerprint, Descriptor> = descriptors
+        let mut descriptors: RHashMap<Fingerprint, UnpackedDescriptor> = descriptors
             .into_iter()
             .map(|d| (d.digest.clone(), d))
             .collect();
@@ -177,7 +251,7 @@ impl Consensus {
         for relay in consensus.relays {
             let descriptor = descriptors.remove(&relay.digest).ok_or_else(|| {
                 DocumentCombiningError::MissingDescriptor {
-                    digest: relay.digest.clone(),
+                    digest: relay.digest.to_string(),
                 }
             })?;
 
@@ -378,7 +452,7 @@ fn family_sizes(family_objects: &Vec<Rc<Family>>) -> Vec<(usize, usize)> {
 
 /// Load descriptors from files relative to the consensus document
 pub fn lookup_descriptors<P: AsRef<Path>>(
-    consensus: &ConsensusDocument,
+    consensus: &UnpackedConsensus,
     consensus_path: P,
 ) -> Result<Vec<Descriptor>, Box<dyn std::error::Error>> {
     let consensus_path = consensus_path.as_ref();
@@ -438,7 +512,7 @@ pub fn lookup_descriptors<P: AsRef<Path>>(
             previous_path
         } else {
             return Err(Box::new(DocumentCombiningError::MissingDescriptor {
-                digest: relay.digest.clone(),
+                digest: relay.digest.to_string(),
             }));
         };
 
