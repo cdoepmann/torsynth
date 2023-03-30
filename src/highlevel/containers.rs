@@ -10,6 +10,8 @@ use std::path::Path;
 use std::rc::Rc;
 
 // external dependencies
+use anyhow;
+use anyhow::Context;
 use chrono::{DateTime, Utc};
 use fromsuper::FromSuper;
 use itertools;
@@ -67,8 +69,10 @@ struct UnpackedRelay {
     #[fromsuper(unpack = false)]
     pub dir_port: Option<u16>,
     pub flags: Vec<Flag>,
-    pub version_line: String,
-    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    #[fromsuper(unpack = false)]
+    pub version_line: Option<String>,
+    #[fromsuper(unpack = false)]
+    pub protocols: Option<BTreeMap<Protocol, SupportedProtocolVersion>>,
     pub exit_policy: CondensedExitPolicy,
     pub bandwidth_weight: u64,
 }
@@ -78,11 +82,11 @@ struct UnpackedRelay {
 pub struct UnpackedConsensus {
     valid_after: DateTime<Utc>,
     relays: Vec<UnpackedRelay>,
-    weights: BTreeMap<String, u64>,
+    weights: Option<BTreeMap<String, u64>>,
 }
 
 impl TryFrom<ConsensusDocument> for UnpackedConsensus {
-    type Error = Box<dyn std::error::Error>;
+    type Error = Box<dyn std::error::Error + Send + Sync>;
 
     fn try_from(value: ConsensusDocument) -> Result<Self, Self::Error> {
         Ok(UnpackedConsensus {
@@ -94,9 +98,7 @@ impl TryFrom<ConsensusDocument> for UnpackedConsensus {
                 .into_iter()
                 .map(UnpackedRelay::try_from)
                 .collect::<Result<Vec<_>, _>>()?,
-            weights: value
-                .weights
-                .ok_or_else(|| DocumentCombiningError::incomplete_relay("weights"))?,
+            weights: value.weights,
         })
     }
 }
@@ -125,8 +127,8 @@ pub struct Relay {
     pub or_port: u16,
     pub dir_port: Option<u16>,
     pub flags: Vec<Flag>,
-    pub version_line: String,
-    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    pub version_line: Option<String>,
+    pub protocols: Option<BTreeMap<Protocol, SupportedProtocolVersion>>,
     pub exit_policy: CondensedExitPolicy,
     pub bandwidth_weight: u64,
     // from descriptor
@@ -190,7 +192,7 @@ impl Consensus {
         consensus: UnpackedConsensus,
         descriptors: Vec<Descriptor>,
         asn_db: &AsnDb,
-    ) -> Result<Consensus, Box<dyn std::error::Error>> {
+    ) -> Result<Consensus, Box<dyn std::error::Error + Send + Sync>> {
         // unpack descriptors
         let descriptors: Vec<UnpackedDescriptor> = descriptors
             .into_iter()
@@ -251,7 +253,7 @@ impl Consensus {
         for relay in consensus.relays {
             let descriptor = descriptors.remove(&relay.digest).ok_or_else(|| {
                 DocumentCombiningError::MissingDescriptor {
-                    digest: relay.digest.to_string(),
+                    digest: relay.digest.to_string_hex(),
                 }
             })?;
 
@@ -306,15 +308,26 @@ impl Consensus {
         //     }
         // }
 
-        let res = Consensus {
+        // If there were no consensus weight values, we compute them from scratch
+        let (weights, weights_need_recompute) = match consensus.weights {
+            Some(weights) => (weights, false),
+            None => (BTreeMap::new(), true),
+        };
+
+        let mut res = Consensus {
             valid_after: consensus.valid_after,
-            weights: consensus.weights,
+            weights: weights,
             relays: relays,
             families: family_objects,
             prob_family,
             prob_family_sameas,
             family_sizes,
         };
+
+        if weights_need_recompute {
+            res.recompute_bw_weights();
+        }
+
         res.print_stats();
 
         Ok(res)
@@ -454,7 +467,7 @@ fn family_sizes(family_objects: &Vec<Rc<Family>>) -> Vec<(usize, usize)> {
 pub fn lookup_descriptors<P: AsRef<Path>>(
     consensus: &UnpackedConsensus,
     consensus_path: P,
-) -> Result<Vec<Descriptor>, Box<dyn std::error::Error>> {
+) -> anyhow::Result<Vec<Descriptor>> {
     let consensus_path = consensus_path.as_ref();
     // get year and month
     let fname_regex = Regex::new(r"^(\d{4})-(\d{2})-(\d{2})-").unwrap();
@@ -485,7 +498,10 @@ pub fn lookup_descriptors<P: AsRef<Path>>(
             this_year, this_month
         ));
     if !current_desc.exists() {
-        return Err(Box::new(DocumentCombiningError::InvalidFolderStructure));
+        return Err(
+            anyhow::anyhow!(DocumentCombiningError::InvalidFolderStructure)
+                .context(format!("looking up {}", current_desc.display())),
+        );
     }
     let previous_desc = consensus_path
         .parent()
@@ -511,15 +527,36 @@ pub fn lookup_descriptors<P: AsRef<Path>>(
         } else if previous_path.exists() {
             previous_path
         } else {
-            return Err(Box::new(DocumentCombiningError::MissingDescriptor {
-                digest: relay.digest.to_string(),
-            }));
+            return Err(anyhow::anyhow!(DocumentCombiningError::MissingDescriptor {
+                digest: relay.digest.to_string_hex(),
+            })
+            .context(format!(
+                "looking up {} or {}",
+                current_desc.display(),
+                previous_desc.display()
+            )));
         };
 
-        let mut raw = String::new();
-        let mut file = File::open(desc_path).unwrap();
-        file.read_to_string(&mut raw).unwrap();
-        descriptors.append(&mut Descriptor::many_from_str(&raw)?);
+        let descriptor = {
+            use std::str;
+
+            let mut raw = Vec::new();
+            let mut file = File::open(&desc_path).unwrap();
+            file.read_to_end(&mut raw).unwrap();
+
+            match str::from_utf8(&raw) {
+                Ok(text) => Descriptor::from_str(text).context(format!(
+                    "parsing descriptor {}",
+                    desc_path.canonicalize().unwrap().display()
+                ))?,
+                Err(_) => {
+                    // invalid UTF-8
+                    Descriptor::from_bytes_lossy(&raw)?
+                }
+            }
+        };
+
+        descriptors.push(descriptor);
     }
 
     Ok(descriptors)

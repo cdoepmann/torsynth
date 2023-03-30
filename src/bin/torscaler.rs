@@ -1,9 +1,11 @@
-mod highlevel;
 use highlevel::{
     cutoff_lower_and_redistribute, scale_flag_groups_vertically, scale_horizontally,
     scale_vertically_by_bandwidth_rank,
 };
+use torscaler::highlevel;
 // mod parser;
+
+mod history;
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -28,6 +30,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Scale(ScaleArgs),
+    History(history::HistoryArgs),
 }
 
 #[derive(Args)]
@@ -88,7 +91,7 @@ struct ScaleArgs {
     remove_idle_relays: bool,
 }
 
-fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     let cli_scale = if let Command::Scale(x) = cli.command {
         x
     } else {
@@ -194,7 +197,7 @@ fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     let cli = Cli::parse();
 
     seeded_rand::set_seed(if cli.seed == 0 {
@@ -210,5 +213,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Command::Scale(_) => command_scale(cli),
+        Command::History(_) => history::command_history(cli),
     }
 }
