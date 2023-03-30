@@ -69,8 +69,10 @@ struct UnpackedRelay {
     #[fromsuper(unpack = false)]
     pub dir_port: Option<u16>,
     pub flags: Vec<Flag>,
-    pub version_line: String,
-    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    #[fromsuper(unpack = false)]
+    pub version_line: Option<String>,
+    #[fromsuper(unpack = false)]
+    pub protocols: Option<BTreeMap<Protocol, SupportedProtocolVersion>>,
     pub exit_policy: CondensedExitPolicy,
     pub bandwidth_weight: u64,
 }
@@ -80,7 +82,7 @@ struct UnpackedRelay {
 pub struct UnpackedConsensus {
     valid_after: DateTime<Utc>,
     relays: Vec<UnpackedRelay>,
-    weights: BTreeMap<String, u64>,
+    weights: Option<BTreeMap<String, u64>>,
 }
 
 impl TryFrom<ConsensusDocument> for UnpackedConsensus {
@@ -96,9 +98,7 @@ impl TryFrom<ConsensusDocument> for UnpackedConsensus {
                 .into_iter()
                 .map(UnpackedRelay::try_from)
                 .collect::<Result<Vec<_>, _>>()?,
-            weights: value
-                .weights
-                .ok_or_else(|| DocumentCombiningError::incomplete_relay("weights"))?,
+            weights: value.weights,
         })
     }
 }
@@ -127,8 +127,8 @@ pub struct Relay {
     pub or_port: u16,
     pub dir_port: Option<u16>,
     pub flags: Vec<Flag>,
-    pub version_line: String,
-    pub protocols: BTreeMap<Protocol, SupportedProtocolVersion>,
+    pub version_line: Option<String>,
+    pub protocols: Option<BTreeMap<Protocol, SupportedProtocolVersion>>,
     pub exit_policy: CondensedExitPolicy,
     pub bandwidth_weight: u64,
     // from descriptor
@@ -308,15 +308,26 @@ impl Consensus {
         //     }
         // }
 
-        let res = Consensus {
+        // If there were no consensus weight values, we compute them from scratch
+        let (weights, weights_need_recompute) = match consensus.weights {
+            Some(weights) => (weights, false),
+            None => (BTreeMap::new(), true),
+        };
+
+        let mut res = Consensus {
             valid_after: consensus.valid_after,
-            weights: consensus.weights,
+            weights: weights,
             relays: relays,
             families: family_objects,
             prob_family,
             prob_family_sameas,
             family_sizes,
         };
+
+        if weights_need_recompute {
+            res.recompute_bw_weights();
+        }
+
         res.print_stats();
 
         Ok(res)

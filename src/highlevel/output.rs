@@ -218,14 +218,18 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
         writeln!(
             &mut f_consensus,
             "pr {}",
-            relay
-                .protocols
-                .iter()
-                .map(|(protocol, version)| {
-                    format!("{}={}", <&'static str>::from(protocol), version.to_string())
-                })
-                .collect::<Vec<_>>()
-                .join(" ")
+            match relay.protocols {
+                Some(ref protocols) => {
+                    protocols
+                        .iter()
+                        .map(|(protocol, version)| {
+                            format!("{}={}", <&'static str>::from(protocol), version.to_string())
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                }
+                None => "".to_string(),
+            }
         )?;
 
         writeln!(&mut f_consensus, "w Bandwidth={}", relay.bandwidth_weight)?;
