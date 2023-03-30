@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use chrono::{offset::TimeZone, DateTime, Utc};
 use clap::Args;
 use csv;
+use fromsuper::FromSuper;
 use glob::glob;
 use serde::Serialize;
 
@@ -20,6 +21,34 @@ pub(crate) struct HistoryArgs {
     /// Output CSV file to store the per-consensus aggregate data
     #[clap(long)]
     csv_out: String,
+}
+
+#[derive(Debug, FromSuper)]
+#[fromsuper(from_type = "tordoc::consensus::Relay", unpack = true)]
+struct MyRelay {
+    bandwidth_weight: u64,
+}
+
+struct MyConsensus {
+    valid_after: DateTime<Utc>,
+    relays: Vec<MyRelay>,
+}
+
+impl TryFrom<Consensus> for MyConsensus {
+    type Error = Box<dyn std::error::Error + Send + Sync>;
+
+    fn try_from(value: Consensus) -> Result<Self, Self::Error> {
+        Ok(MyConsensus {
+            valid_after: value
+                .valid_after
+                .ok_or_else(|| "missing valid_after value")?,
+            relays: value
+                .relays
+                .into_iter()
+                .map(|r| r.try_into())
+                .collect::<Result<_, _>>()?,
+        })
+    }
 }
 
 pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
@@ -87,6 +116,7 @@ pub(crate) fn command_history(cli: Cli) -> Result<(), Box<dyn std::error::Error 
         let mut file = File::open(&fpath).unwrap();
         file.read_to_string(&mut raw).unwrap();
         let cons = Consensus::from_str(&raw)?;
+        let cons: MyConsensus = cons.try_into()?;
 
         // create CSV record
         let record = CsvRecord {

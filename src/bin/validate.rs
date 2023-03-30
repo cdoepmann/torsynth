@@ -156,11 +156,14 @@ fn main() -> anyhow::Result<()> {
 // }
 
 fn load_consensus(path: &str, asn_db: &AsnDb) -> anyhow::Result<Consensus> {
-    let consensus = {
+    let consensus: highlevel::UnpackedConsensus = {
         let mut raw = String::new();
         let mut file = File::open(path)?;
         file.read_to_string(&mut raw).unwrap();
-        tordoc::Consensus::from_str(&raw)?
+        let raw_consensus = tordoc::Consensus::from_str(&raw)?;
+        raw_consensus
+            .try_into()
+            .map_err(|e: Box<dyn std::error::Error + Send + Sync>| anyhow::anyhow!(e))?
     };
 
     // Load descriptors from files relative to the consensus file
@@ -168,7 +171,8 @@ fn load_consensus(path: &str, asn_db: &AsnDb) -> anyhow::Result<Consensus> {
         highlevel::lookup_descriptors(&consensus, path).map_err(|e| anyhow::anyhow!(e))?;
 
     // println!("{:?}", descriptors);
-    let consensus = highlevel::Consensus::combine_documents(consensus, descriptors, &asn_db)?;
+    let consensus = highlevel::Consensus::combine_documents(consensus, descriptors, &asn_db)
+        .map_err(|e: Box<dyn std::error::Error + Send + Sync>| anyhow::anyhow!(e))?;
     // println!("{:?}", consensus);
 
     Ok(consensus)

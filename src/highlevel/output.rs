@@ -16,7 +16,7 @@ use thiserror;
 use super::Consensus;
 
 use sha1::{Digest, Sha1};
-use tordoc::{consensus::Flag, Descriptor, Fingerprint};
+use tordoc::{consensus::Flag, Fingerprint};
 
 #[derive(thiserror::Error, Debug)]
 pub enum OutputError {
@@ -215,18 +215,18 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
         )?;
         writeln!(&mut f_consensus, "v Tor 0.4.6.10")?; // TODO version
 
-        // writeln!(
-        //     &mut f_consensus,
-        //     "pr {}",
-        //     relay
-        //         .protocols
-        //         .iter()
-        //         .map(|(protocol, version)| {
-        //             format!("{}={}", <&'static str>::from(protocol), version.to_string())
-        //         })
-        //         .collect::<Vec<_>>()
-        //         .join(" ")
-        // )?;
+        writeln!(
+            &mut f_consensus,
+            "pr {}",
+            relay
+                .protocols
+                .iter()
+                .map(|(protocol, version)| {
+                    format!("{}={}", <&'static str>::from(protocol), version.to_string())
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        )?;
 
         writeln!(&mut f_consensus, "w Bandwidth={}", relay.bandwidth_weight)?;
         writeln!(&mut f_consensus, "p {}", relay.exit_policy)?;
