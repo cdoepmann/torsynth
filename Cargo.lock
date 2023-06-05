@@ -778,6 +778,7 @@ checksum = "9c8132065adcfd6e02db789d9285a0deb2f3fcb04002865ab67d5fb103533898"
 [[package]]
 name = "seeded_rand"
 version = "0.1.0"
+source = "git+https://github.com/cdoepmann/seeded_rand#da3324fed0e08085acfcd0cc0b91cefb93cd1bb6"
 dependencies = [
  "lazy_static",
  "rand",
@@ -928,6 +929,7 @@ dependencies = [
 [[package]]
 name = "tordoc"
 version = "0.1.0"
+source = "git+https://github.com/cdoepmann/tordoc#98c02d90b5385499dcd861ab9624fdd77c3049c8"
 dependencies = [
  "base64",
  "chrono",
