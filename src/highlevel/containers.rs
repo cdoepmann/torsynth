@@ -108,6 +108,7 @@ impl TryFrom<ConsensusDocument> for UnpackedConsensus {
 struct UnpackedDescriptor {
     pub fingerprint: Fingerprint,
     pub digest: Fingerprint,
+    #[fromsuper(unpack_or_default = true)]
     pub family_members: Vec<FamilyMember>,
     pub bandwidth_avg: u64,
     pub bandwidth_burst: u64,
