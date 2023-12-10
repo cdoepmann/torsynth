@@ -51,6 +51,10 @@ struct ScaleArgs {
     /// Directory to save the generated consensus to.
     #[clap(long, short)]
     output_dir: Option<String>,
+    /// Output the scaled consensus as a folder hierarchy compatible with the
+    /// format from CollecTor
+    #[clap(long)]
+    output_collector: bool,
     /// Scale the consensus horizontally by this factor
     #[clap(long, requires = "prob-family-new")]
     horz: Option<f32>,
@@ -191,7 +195,11 @@ fn command_scale(cli: Cli) -> Result<(), Box<dyn std::error::Error + Sync + Send
     }
 
     if let Some(output_dir) = cli_scale.output_dir {
-        highlevel::output::save_to_dir(&consensus, &output_dir)?;
+        if cli_scale.output_collector {
+            highlevel::output::save_to_tordata_dir(&consensus, &output_dir)?;
+        } else {
+            highlevel::output::save_to_dir(&consensus, &output_dir)?;
+        }
     }
 
     Ok(())

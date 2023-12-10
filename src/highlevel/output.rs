@@ -6,7 +6,7 @@ use std::fs;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use chrono::Duration;
 use serde::Serialize;
@@ -70,8 +70,8 @@ fn save_consensus_json<P: AsRef<Path>>(consensus: &Consensus, fpath: P) -> Resul
     Ok(())
 }
 
-pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), OutputError> {
-    let dir = dir.as_ref();
+pub fn save_to_dir(consensus: &Consensus, dir: impl AsRef<Path>) -> Result<(), OutputError> {
+    let dir: &Path = dir.as_ref();
 
     // check output dir
     if !fs::metadata(dir)
@@ -88,14 +88,102 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
     }
 
     // create output dir tree
-    let consensus_dir_path = dir.join("consensus");
-    fs::create_dir(&consensus_dir_path)?;
+    let consensus_dir = dir.join("consensus");
+    fs::create_dir(&consensus_dir)?;
+    let consensus_path = consensus_dir.join("consensus");
+    let consensus_json_path = consensus_dir.join("consensus.json");
 
-    let descriptors_dir_path = dir.join("descriptors");
-    fs::create_dir(&descriptors_dir_path)?;
+    let descriptor_dir = dir.join("descriptors");
+    fs::create_dir(&descriptor_dir)?;
+    let descriptor_path = |fp: &Fingerprint| -> Result<PathBuf, OutputError> {
+        Ok(descriptor_dir.join(fp.to_string_hex()))
+    };
+
+    save_to(
+        consensus,
+        consensus_path,
+        Some(consensus_json_path),
+        descriptor_path,
+    )
+}
+
+pub fn save_to_tordata_dir(
+    consensus: &Consensus,
+    dir: impl AsRef<Path>,
+) -> Result<(), OutputError> {
+    let dir: &Path = dir.as_ref();
+
+    // check output dir
+    if !fs::metadata(dir)
+        .map_err(|_| OutputError::DirAccess)?
+        .is_dir()
+    {
+        return Err(OutputError::NotADir);
+    }
+    if let Some(_) = fs::read_dir(dir)
+        .map_err(|_| OutputError::DirAccess)?
+        .next()
+    {
+        return Err(OutputError::DirNotEmpty);
+    }
+
+    // consensus file
+    let consensus_dir = dir.join(
+        consensus
+            .valid_after
+            .format("consensuses-%Y-%m")
+            .to_string(),
+    );
+    fs::create_dir(&consensus_dir)?;
+    let consensus_dir = consensus_dir.join(consensus.valid_after.format("%m").to_string());
+    fs::create_dir(&consensus_dir)?;
+
+    let consensus_path = consensus_dir.join(
+        consensus
+            .valid_after
+            .format("%Y-%m-%d-%H-%M-%S-consensus")
+            .to_string(),
+    );
+
+    // descriptor files
+    let descriptor_dir = dir.join(
+        consensus
+            .valid_after
+            .format("server-descriptors-%Y-%m")
+            .to_string(),
+    );
+    fs::create_dir(&descriptor_dir)?;
+
+    let descriptor_path = |fp: &Fingerprint| -> Result<PathBuf, OutputError> {
+        let digest = fp.to_string_hex();
+        let first_char = digest.chars().nth(0).unwrap().to_string();
+        let second_char = digest.chars().nth(1).unwrap().to_string();
+
+        let desc_subdir = descriptor_dir.join(first_char).join(second_char);
+        fs::create_dir_all(&desc_subdir)?;
+
+        Ok(desc_subdir.join(fp.to_string_hex()))
+    };
+
+    save_to(
+        consensus,
+        consensus_path,
+        None as Option<PathBuf>,
+        descriptor_path,
+    )
+}
+
+fn save_to(
+    consensus: &Consensus,
+    consensus_path: impl AsRef<Path>,
+    consensus_json_path: Option<impl AsRef<Path>>,
+    descriptor_path: impl FnMut(&Fingerprint) -> Result<PathBuf, OutputError>,
+) -> Result<(), OutputError> {
+    let consensus_path = consensus_path.as_ref();
+    let mut descriptor_path = descriptor_path;
 
     // output meta info
-    let mut f_consensus = File::create(consensus_dir_path.join("consensus"))?;
+    let mut f_consensus = File::create(consensus_path)?;
 
     writeln!(&mut f_consensus, "@type network-status-consensus-3 1.0")?;
     writeln!(&mut f_consensus, "network-status-version 3")?;
@@ -184,10 +272,7 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
             let to_idx = desc.find(to).unwrap() + to.len();
             digest_from_raw(&desc[from_idx..to_idx])
         };
-        fs::write(
-            descriptors_dir_path.join(desc_digest.to_string_hex()),
-            &desc,
-        )?;
+        fs::write(descriptor_path(&desc_digest)?, &desc)?;
 
         // Now print the consensus entry
         writeln!(
@@ -249,7 +334,9 @@ pub fn save_to_dir<P: AsRef<Path>>(consensus: &Consensus, dir: P) -> Result<(), 
     )?;
 
     // save consensus JSON
-    save_consensus_json(consensus, consensus_dir_path.join("consensus.json"))?;
+    if let Some(consensus_json_path) = consensus_json_path {
+        save_consensus_json(consensus, consensus_json_path)?;
+    }
 
     Ok(())
 }
